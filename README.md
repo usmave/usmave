@@ -6,10 +6,17 @@ und Wiederholungen protokollieren. Läuft offline, die Daten bleiben auf dem Ger
 ## Aufs iPhone holen
 
 1. In den GitHub-Repo-Einstellungen **Settings → Pages** öffnen.
-2. Bei *Source* **Deploy from a branch** wählen, Branch `main` (oder den Branch dieser App), Ordner `/ (root)`, **Save**.
-3. Nach ein bis zwei Minuten steht die Adresse dort — Form: `https://<benutzername>.github.io/<repo>/`.
+2. Bei *Source* **Deploy from a branch** wählen, als Branch den Branch dieser App
+   (`claude/iphone-trainingsplan-app-wb0ci8`, oder `main` nach dem Zusammenführen),
+   Ordner `/ (root)`, **Save**.
+3. Nach ein bis zwei Minuten steht die Adresse dort. Weil dieses Repo so heißt wie der
+   Account, ist das **https://usmave.github.io/**.
 4. Diese Adresse im **Safari** auf dem iPhone öffnen (nicht Chrome — nur Safari kann Apps auf den Home-Bildschirm legen).
 5. Teilen-Symbol → **Zum Home-Bildschirm**. Fertig: eigenes Icon, kein Browser-Rahmen, funktioniert ohne Empfang.
+
+Hinweis: GitHub Pages braucht bei kostenlosen Konten ein öffentliches Repo. Öffentlich
+ist dann nur der Programmcode — die Trainingsdaten stehen nirgends im Repo, die bleiben
+ausschließlich auf dem iPhone.
 
 ## Wie der Übungswechsel gedacht ist
 
