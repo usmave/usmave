@@ -93,15 +93,15 @@ function viewTraining() {
     viewEl.innerHTML = html`
       <div class="empty">
         <span class="big">🏋️</span>
-        <p>Noch kein Trainingsplan angelegt.<br>Leg zuerst einen Trainingstag mit Übungen an.</p>
+        <p>Noch kein Trainingsplan angelegt.<br>Dein Tag A steht bereit — ein Tipp genügt.</p>
       </div>
-      <button class="btn primary" data-new-day type="button">Trainingstag anlegen</button>
-      <button class="btn quiet" data-seed type="button">Beispielplan zum Ausprobieren</button>
+      <button class="btn primary" data-seed type="button">Meinen Plan anlegen</button>
+      <button class="btn quiet" data-new-day type="button">Lieber selbst anlegen</button>
     `;
     viewEl.querySelector('[data-new-day]').addEventListener('click', () => newDay());
     viewEl.querySelector('[data-seed]').addEventListener('click', () => {
-      S.seedExample();
-      toast('Beispielplan angelegt');
+      S.seedMyPlan();
+      toast('Tag A angelegt');
       go('plan');
     });
     return;
@@ -226,7 +226,7 @@ function entryCard(session, entry) {
   const ex = S.exerciseById(entry.exerciseId);
   const uni = !!entry.unilateral;
   const substituted = entry.plannedExerciseId && entry.plannedExerciseId !== entry.exerciseId;
-  const target = entry.targetReps ? `${entry.targetSets}×${entry.targetReps}` : '';
+  const target = entry.targetReps ? `${entry.targetSets}×${entry.targetReps}` : `${entry.targetSets} Sätze`;
   const complete = entry.sets.length > 0 && entry.sets.every((s) => s.done);
 
   return html`
@@ -543,15 +543,15 @@ function viewPlan() {
     viewEl.innerHTML = html`
       <div class="empty">
         <span class="big">📋</span>
-        <p>Ein Trainingsplan besteht aus Trainingstagen (z.&nbsp;B. „Tag A“, „Push“),<br>die jeweils mehrere Übungen enthalten.</p>
+        <p>Ein Trainingsplan besteht aus Trainingstagen,<br>die jeweils mehrere Übungen enthalten.</p>
       </div>
-      <button class="btn primary" data-new-day type="button">Ersten Trainingstag anlegen</button>
-      <button class="btn quiet" data-seed type="button">Beispielplan zum Ausprobieren</button>
+      <button class="btn primary" data-seed type="button">Meinen Plan anlegen</button>
+      <button class="btn quiet" data-new-day type="button">Lieber selbst anlegen</button>
     `;
     viewEl.querySelector('[data-new-day]').addEventListener('click', () => newDay());
     viewEl.querySelector('[data-seed]').addEventListener('click', () => {
-      S.seedExample();
-      toast('Beispielplan angelegt');
+      S.seedMyPlan();
+      toast('Tag A angelegt');
       render();
     });
     return;
@@ -629,7 +629,7 @@ function viewDay() {
                   <div class="row-main">
                     <div class="row-title">${esc(S.exerciseName(slot.exerciseId))}</div>
                     <div class="row-sub">
-                      Ziel ${slot.targetSets}×${esc(slot.targetReps)}${S.exerciseById(slot.exerciseId)?.unilateral ? ' · einseitig' : ''} · ${esc(lastHint(slot.exerciseId))}
+                      ${slot.targetReps ? `Ziel ${slot.targetSets}×${esc(slot.targetReps)}` : `${slot.targetSets} Sätze`}${S.exerciseById(slot.exerciseId)?.unilateral ? ' · einseitig' : ''} · ${esc(lastHint(slot.exerciseId))}
                     </div>
                   </div>
                   <span class="row-chev">⋯</span>
@@ -749,7 +749,11 @@ function slotMenu(day, slotId) {
         sub: 'Neue Übung startet mit eigenem Verlauf, alter bleibt archiviert erhalten.',
         run: () => replaceSlotFlow(day, slot),
       },
-      { label: 'Ziel ändern', sub: `${slot.targetSets}×${slot.targetReps}`, run: () => editTarget(day, slot) },
+      {
+      label: 'Sätze / Wiederholungen ändern',
+      sub: slot.targetReps ? `${slot.targetSets}×${slot.targetReps}` : `${slot.targetSets} Sätze, kein Wdh-Ziel`,
+      run: () => editTarget(day, slot),
+    },
       {
         label: ex && ex.unilateral ? 'Einseitig (L/R) ausschalten' : 'Als einseitig markieren (L/R)',
         sub: 'Erfasst Wiederholungen getrennt für links und rechts.',
@@ -808,9 +812,10 @@ function editTarget(day, slot) {
         </div>
         <div class="field">
           <label for="tr">Wiederholungen</label>
-          <input id="tr" type="text" value="${esc(slot.targetReps)}" placeholder="8-12">
+          <input id="tr" type="text" value="${esc(slot.targetReps)}" placeholder="z. B. 8-12">
         </div>
       </div>
+      <p class="tiny muted" style="margin:-6px 0 14px">Wiederholungen dürfen leer bleiben — dann steht in der Übung nur die Satzzahl.</p>
       <button class="btn primary" data-ok type="button">Speichern</button>
     `,
     onMount(root, close) {

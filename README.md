@@ -18,6 +18,28 @@ Hinweis: GitHub Pages braucht bei kostenlosen Konten ein öffentliches Repo. Öf
 ist dann nur der Programmcode — die Trainingsdaten stehen nirgends im Repo, die bleiben
 ausschließlich auf dem iPhone.
 
+## Dein Plan
+
+Beim ersten Start legt **Meinen Plan anlegen** Tag A fertig an:
+
+| # | Übung | Sätze |
+|---|---|---|
+| 1 | Bankdrückmaschine flach | 2 |
+| 2 | Butterflymaschine | 2 |
+| 3 | Bankdrückmaschine sitzend | 2 |
+| 4 | Schulterdrücken Maschine sitzend | 2 |
+| 5 | Seitheben Kabel | 2 |
+| 6 | Trizepsdrücken Kabel | 2 |
+| 7 | Dips | 3 |
+
+Wiederholungsziele stehen bewusst leer, weil keine vorgegeben waren — in der Übung
+steht dann einfach „2 Sätze". Nachtragen geht jederzeit über
+Plan → Übung → *Sätze / Wiederholungen ändern*.
+
+Tag B ist noch nicht hinterlegt. Bis dahin: Plan → **＋ Tag** → Übungen hinzufügen.
+Der Tagesvorschlag auf der Startseite wechselt automatisch zwischen allen
+angelegten Tagen, sobald zwei da sind.
+
 ## Wie der Übungswechsel gedacht ist
 
 Die App trennt **Übung** (Name + Verlauf) und **Platz im Plan**. Daraus ergeben sich drei Wege:

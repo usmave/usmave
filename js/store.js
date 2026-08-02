@@ -636,19 +636,27 @@ export function resetAll() {
   writeNow();
 }
 
-/* -------------------------------------------------------------- Beispielplan */
+/* ------------------------------------------------------------- Startplan */
 
-export function seedExample() {
+/**
+ * Der eigene Plan, damit im Studio nichts abgetippt werden muss.
+ * Wiederholungsziele stehen bewusst leer — sie sind nicht vorgegeben und
+ * lassen sich pro Übung jederzeit im Plan nachtragen.
+ */
+export function seedMyPlan() {
   const mk = (name, unilateral = false) => addExercise({ name, unilateral }).id;
-  const a = addDay('Tag A — Oberkörper');
-  addSlot(a.id, { exerciseId: mk('Brustpresse'), targetSets: 3, targetReps: '8-12' });
-  addSlot(a.id, { exerciseId: mk('Latzug'), targetSets: 3, targetReps: '8-12' });
-  addSlot(a.id, { exerciseId: mk('Schulterdrücken Kurzhantel', true), targetSets: 3, targetReps: '10-12' });
-  addSlot(a.id, { exerciseId: mk('Rudern einarmig', true), targetSets: 3, targetReps: '10-12' });
-  const b = addDay('Tag B — Beine & Rumpf');
-  addSlot(b.id, { exerciseId: mk('Beinpresse'), targetSets: 3, targetReps: '10-15' });
-  addSlot(b.id, { exerciseId: mk('Beinbeuger'), targetSets: 3, targetReps: '10-15' });
-  addSlot(b.id, { exerciseId: mk('Wadenheben'), targetSets: 4, targetReps: '12-15' });
+  const a = addDay('Tag A');
+  const slot = (dayId, name, sets, unilateral = false) =>
+    addSlot(dayId, { exerciseId: mk(name, unilateral), targetSets: sets, targetReps: '' });
+
+  slot(a.id, 'Bankdrückmaschine flach', 2);
+  slot(a.id, 'Butterflymaschine', 2);
+  slot(a.id, 'Bankdrückmaschine sitzend', 2);
+  slot(a.id, 'Schulterdrücken Maschine sitzend', 2);
+  slot(a.id, 'Seitheben Kabel', 2);
+  slot(a.id, 'Trizepsdrücken Kabel', 2);
+  slot(a.id, 'Dips', 3);
+
   writeNow();
 }
 

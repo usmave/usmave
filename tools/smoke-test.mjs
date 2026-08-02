@@ -67,32 +67,63 @@ const check = async (i, n = 0) => {
   await wait(160);
 };
 const rowClass = (i, n = 0) => card(i).locator('.set-row').nth(n).getAttribute('class');
+const tab = async (name) => {
+  await page.locator(`.tab[data-tab="${name}"]`).click();
+  await wait();
+};
 
 await page.goto('http://localhost:4321/');
 await wait(400);
 
-step('Leerzustand → Beispielplan');
-await page.getByText('Beispielplan zum Ausprobieren').click();
+step('Leerzustand → eigener Plan');
+await page.getByText('Meinen Plan anlegen').click();
 await wait();
-ok(await page.getByText('Tag A — Oberkörper').first().isVisible(), 'Beispielplan angelegt');
+ok(await page.getByText('Tag A').first().isVisible(), 'Tag A angelegt');
+ok((await page.locator('[data-day]').count()) === 1, 'genau ein Trainingstag');
 await shot('plan');
 
-step('Startseite schlägt den ersten Tag vor');
-await page.locator('.tab[data-tab="training"]').click();
+step('Zweiten Trainingstag anlegen');
+await page.locator('[data-new-day]').click();
 await wait();
-ok((await page.locator('.next-name').innerText()).includes('Tag A'), 'Vorschlag: Tag A');
-await shot('start');
+await page.locator('#prompt-input').fill('Tag B');
+await page.locator('[data-ok]').click();
+await wait(300);
+await page.locator('[data-add-slot]').click();
+await wait();
+await page.locator('[data-create]').click();
+await wait(250);
+await page.locator('#ex-name').fill('Beinpresse');
+await page.locator('[data-ok]').click();
+await wait(300);
+ok((await page.locator('[data-slot]').count()) === 1, 'Tag B hat eine Übung');
 
-step('Training starten');
+step('Seitheben Kabel als einseitig markieren');
+await page.locator('[data-top="left"]').click(); // zurück zur Planübersicht
+await wait(250);
+await page.locator('[data-day]').first().click();
+await wait(250);
+ok((await page.locator('[data-slot]').count()) === 7, 'Tag A hat sieben Übungen');
+await page.locator('[data-slot]').nth(4).click();
+await wait(250);
+await page.getByText('Als einseitig markieren (L/R)').click();
+await wait(300);
+ok((await page.locator('.view').innerText()).includes('einseitig'), 'Übung ist als einseitig markiert');
+await shot('plan-tag-a');
+
+step('Training starten — Tag A ist dran');
+await tab('training');
+ok((await page.locator('.next-name').innerText()).includes('Tag A'), 'Vorschlag: Tag A');
 await page.locator('.next-card [data-start]').click();
-await wait();
-ok((await page.locator('[data-entry-card]').count()) === 4, 'vier Übungen im Training');
-ok((await page.locator('.set-row.uni').count()) > 0, 'einseitige Übung hat L/R-Felder');
+await wait(300);
+ok((await page.locator('[data-entry-card]').count()) === 7, 'sieben Übungen im Training');
+ok((await card(0).locator('.set-row').count()) === 2, 'Bankdrückmaschine flach mit zwei Sätzen');
+ok((await card(6).locator('.set-row').count()) === 3, 'Dips mit drei Sätzen');
+ok((await page.locator('.set-row.uni').count()) === 2, 'Seitheben hat L/R-Felder');
 await shot('session');
 
 step('Sätze eintragen');
-await fill(0, 'weight', '42,5');
-await fill(0, 'reps', '12');
+await fill(0, 'weight', '40');
+await fill(0, 'reps', '10');
 await check(0);
 ok((await rowClass(0)).includes('done'), 'Satz abgehakt');
 
@@ -100,31 +131,32 @@ step('Ohne Wert und ohne Vorschlag ist Abhaken gesperrt');
 await check(1);
 ok(!(await rowClass(1)).includes('done'), 'leerer Satz nicht abhakbar');
 await fill(1, 'weight', '55');
-await fill(1, 'reps', '10');
+await fill(1, 'reps', '12');
 await check(1);
 ok((await rowClass(1)).includes('done'), 'nach Eingabe abhakbar');
 
 step('Einseitige Übung: L und R getrennt');
-await fill(2, 'weight', '16');
-await fill(2, 'repsL', '10');
-await fill(2, 'repsR', '12');
-await check(2);
-ok((await rowClass(2)).includes('done'), 'einseitiger Satz abgehakt');
+await fill(4, 'weight', '7,5');
+await fill(4, 'repsL', '12');
+await fill(4, 'repsR', '14');
+await check(4);
+ok((await rowClass(4)).includes('done'), 'einseitiger Satz abgehakt');
 await shot('sets');
 
 step('Gerät besetzt → Ersatzübung nur für heute');
-await card(3).locator('[data-entry-menu]').click();
+await card(6).locator('[data-entry-menu]').click();
 await wait();
 await page.getByText('Andere Übung — nur heute').click();
 await wait();
-await page.locator('#picker-search').fill('Latzug');
-await wait(150);
-await page.locator('[data-pick]').first().click();
+await page.locator('[data-create]').click();
 await wait(250);
-ok(await page.locator('.sub-note').first().isVisible(), 'Ersatz ist gekennzeichnet');
-await fill(3, 'weight', '60');
-await fill(3, 'reps', '8');
-await check(3);
+await page.locator('#ex-name').fill('Trizepsdrücken Maschine');
+await page.locator('[data-ok]').click();
+await wait(300);
+ok((await card(6).locator('.sub-note').innerText()).includes('Dips'), 'Ersatz nennt die ursprüngliche Übung');
+await fill(6, 'weight', '30');
+await fill(6, 'reps', '12');
+await check(6);
 await shot('substitute');
 
 step('Satz hinzufügen');
@@ -145,62 +177,63 @@ ok((await page.locator('.next-hint').innerText()).includes('Tag A'), 'Hinweis ne
 await shot('rotation');
 
 step('Verlauf: L/R sichtbar');
-await page.locator('.tab[data-tab="verlauf"]').click();
-await wait();
+await tab('verlauf');
 await page.locator('[data-mode="uebung"]').click();
 await wait();
-await page.getByText('Schulterdrücken Kurzhantel').first().click();
+await page.getByText('Seitheben Kabel').first().click();
 await wait(250);
-ok((await page.locator('.hist-sets').first().innerText()).includes('10/12'), 'L/R im Verlauf');
+ok((await page.locator('.hist-sets').first().innerText()).includes('12/14'), 'L/R im Verlauf');
 await shot('history-uni');
 
 step('Ersatzübung landet im Verlauf der Ersatzübung');
 await page.locator('[data-top="left"]').click();
 await wait();
-await page.getByText('Latzug').first().click();
+await page.getByText('Trizepsdrücken Maschine').first().click();
 await wait(250);
-const latzug = await page.locator('.view').innerText();
-ok(latzug.includes('als Ersatz'), 'Einsatz als Ersatz ist markiert');
-ok(latzug.includes('60'), 'Werte des Ersatz-Einsatzes sind da');
+const ersatz = await page.locator('.view').innerText();
+ok(ersatz.includes('als Ersatz'), 'Einsatz als Ersatz ist markiert');
+ok(ersatz.includes('30'), 'Werte des Ersatz-Einsatzes sind da');
 
 step('Zweites Training: Werte vom letzten Mal stehen als Vorschlag drin');
-await page.locator('.tab[data-tab="training"]').click();
-await wait();
+await tab('training');
 await page.locator('.list [data-start]').first().click(); // bewusst wieder Tag A
 await wait(300);
 const weightInput = card(0).locator('[data-set-field="weight"]').first();
 ok((await weightInput.inputValue()) === '', 'Feld ist leer (kein Zahlensalat)');
-ok((await weightInput.getAttribute('placeholder')) === '42,5', 'Vorschlag steht blass im Feld');
+ok((await weightInput.getAttribute('placeholder')) === '40', 'Vorschlag steht blass im Feld');
+ok(
+  (await card(6).locator('.card-title').innerText()).includes('Dips'),
+  'im Plan steht wieder die ursprüngliche Übung'
+);
 await shot('suggestion');
 
 step('Abhaken übernimmt den Vorschlag');
 await check(0);
-ok((await weightInput.inputValue()) === '42,5', 'Vorschlag wurde übernommen');
+ok((await weightInput.inputValue()) === '40', 'Vorschlag wurde übernommen');
 ok((await rowClass(0)).includes('done'), 'Satz gilt als erledigt');
 
 step('Höheres Gewicht → Bestwert');
-await fill(0, 'weight', '45');
-await fill(0, 'reps', '12');
+await fill(0, 'weight', '42,5');
+await fill(0, 'reps', '10');
 await page.locator('[data-finish]').click();
 await wait();
 await page.locator('[data-yes]').click();
 await wait(300);
 
 step('Übungsverlauf: Graph, Bestwert, Veränderung');
-await page.locator('.tab[data-tab="verlauf"]').click();
-await wait();
+await tab('verlauf');
 await page.locator('[data-mode="uebung"]').click();
 await wait();
-await page.getByText('Brustpresse').first().click();
+await page.getByText('Bankdrückmaschine flach').first().click();
 await wait(250);
 ok((await page.locator('.spark').count()) === 1, 'Fortschrittsgraph vorhanden');
-const brust = await page.locator('.view').innerText();
-ok(brust.includes('Bestwert'), 'Bestwert markiert');
+const verlauf = await page.locator('.view').innerText();
+ok(verlauf.includes('Bestwert'), 'Bestwert markiert');
 ok(
-  brust.includes('+2,5 kg'),
-  `Veränderung zum Vormal — gefunden: ${JSON.stringify(brust.match(/[+−][\d,]+ (kg|Wdh)/g))}`
+  verlauf.includes('+2,5 kg'),
+  `Veränderung zum Vormal — gefunden: ${JSON.stringify(verlauf.match(/[+−][\d,]+ (kg|Wdh)/g))}`
 );
-ok(brust.includes('Volumen'), 'Volumen pro Eintrag');
+ok(verlauf.includes('Volumen'), 'Volumen pro Eintrag');
 await shot('history-progress');
 
 step('Trainingsdetail: Kennzahlen und Sprung zur Übung');
@@ -218,8 +251,7 @@ await wait(250);
 ok((await page.locator('.hist-entry').count()) > 0, 'Sprung in den Übungsverlauf klappt');
 
 step('Ersatz nach schon abgehaktem Satz: Sätze bleiben bei der alten Übung');
-await page.locator('.tab[data-tab="training"]').click();
-await wait();
+await tab('training');
 await page.locator('.next-card [data-start]').click(); // Tag B
 await wait(300);
 const cardsBefore = await page.locator('[data-entry-card]').count();
@@ -245,8 +277,7 @@ await page.locator('[data-yes]').click();
 await wait(300);
 
 step('Plan: Übung ersetzen → neue Übung, alte archiviert');
-await page.locator('.tab[data-tab="plan"]').click();
-await wait();
+await tab('plan');
 await page.locator('[data-day]').first().click();
 await wait();
 await page.locator('[data-slot]').first().click();
@@ -255,35 +286,34 @@ await page.getByText('Durch andere Übung ersetzen').click();
 await wait();
 await page.locator('[data-create]').click();
 await wait(250);
-await page.locator('#ex-name').fill('Schrägbankdrücken');
+await page.locator('#ex-name').fill('Bankdrücken Langhantel');
 await page.locator('[data-ok]').click();
 await wait(300);
-ok((await page.locator('.view').innerText()).includes('Schrägbankdrücken'), 'neue Übung steht im Plan');
+ok((await page.locator('.view').innerText()).includes('Bankdrücken Langhantel'), 'neue Übung steht im Plan');
 await shot('replaced');
 
 step('Alte Übung archiviert, Verlauf erhalten');
-await page.locator('.tab[data-tab="mehr"]').click();
-await wait();
+await tab('mehr');
 await page.locator('[data-exercises]').click();
 await wait(250);
 const exText = (await page.locator('.view').innerText()).toUpperCase();
 ok(exText.includes('ARCHIVIERT'), 'Archiv-Bereich vorhanden');
-const archived = exText.split('ARCHIVIERT')[1] || '';
-ok(archived.includes('BRUSTPRESSE'), 'Brustpresse ist archiviert');
-ok(/\d+ SÄTZE/.test(archived), 'Verlauf der archivierten Übung erhalten');
+const archiviert = exText.split('ARCHIVIERT')[1] || '';
+ok(archiviert.includes('BANKDRÜCKMASCHINE FLACH'), 'alte Übung ist archiviert');
+ok(/\d+ SÄTZE/.test(archiviert), 'Verlauf der archivierten Übung erhalten');
 await shot('archived');
 
 step('Umbenennen behält den Verlauf');
-await page.getByText('Brustpresse').first().click();
+await page.getByText('Bankdrückmaschine flach').first().click();
 await wait(250);
 await page.getByText('Umbenennen').first().click();
 await wait();
-await page.locator('#prompt-input').fill('Brustpresse (Gerät 3)');
+await page.locator('#prompt-input').fill('Bankdrückmaschine flach (Gerät 2)');
 await page.locator('[data-ok]').click();
 await wait(300);
 const renamed = await page.locator('.view').innerText();
-ok(renamed.includes('Brustpresse (Gerät 3)'), 'umbenannt');
-ok(renamed.split('Brustpresse (Gerät 3)')[1].includes('Sätze'), 'Verlauf nach Umbenennen erhalten');
+ok(renamed.includes('Bankdrückmaschine flach (Gerät 2)'), 'umbenannt');
+ok(renamed.split('Bankdrückmaschine flach (Gerät 2)')[1].includes('Sätze'), 'Verlauf nach Umbenennen erhalten');
 
 step('Export');
 await page.locator('[data-top="left"]').click();
@@ -297,8 +327,7 @@ step('Neuladen: alles noch da');
 await page.reload();
 await wait(500);
 ok((await page.locator('.next-name').innerText()).includes('Tag B'), 'Tagesvorschlag übersteht Neuladen');
-await page.locator('.tab[data-tab="verlauf"]').click();
-await wait(250);
+await tab('verlauf');
 ok((await page.locator('.view').innerText()).includes('Tag A'), 'Verlauf übersteht Neuladen');
 await shot('reload');
 
