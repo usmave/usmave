@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Trainingsplan</title>
+<meta name="description" content="Trainingsplan mit Verlauf: Übungen, Datum, Gewichte und Wiederholungen.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#101317">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Training">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app" class="app">
+    <header id="topbar" class="topbar"></header>
+    <main id="view" class="view"></main>
+    <nav id="tabbar" class="tabbar">
+      <button class="tab" data-tab="training" type="button">
+        <span class="tab-ico">🏋️</span><span class="tab-label">Training</span>
+      </button>
+      <button class="tab" data-tab="plan" type="button">
+        <span class="tab-ico">📋</span><span class="tab-label">Plan</span>
+      </button>
+      <button class="tab" data-tab="verlauf" type="button">
+        <span class="tab-ico">📈</span><span class="tab-label">Verlauf</span>
+      </button>
+      <button class="tab" data-tab="mehr" type="button">
+        <span class="tab-ico">⚙️</span><span class="tab-label">Mehr</span>
+      </button>
+    </nav>
+  </div>
+
+  <div id="sheet-host"></div>
+  <div id="toast-host" class="toast-host" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
