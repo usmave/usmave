@@ -18,7 +18,7 @@ const num = (v) => {
 
 const fmtW = (w) => (w == null ? '–' : String(w).replace('.', ','));
 
-/** "40 kg × 12" bzw. "12 · 12/11" bei einseitigen Übungen */
+/** "40 kg × 12" bzw. "40 kg × 12/11" bei einarmigen Übungen */
 function setLabel(set, unilateral) {
   const w = set.weight != null ? `${fmtW(set.weight)} kg` : '– kg';
   const reps = unilateral ? `${set.repsL ?? '–'}/${set.repsR ?? '–'}` : `${set.reps ?? '–'}`;
@@ -93,7 +93,7 @@ function viewTraining() {
     viewEl.innerHTML = html`
       <div class="empty">
         <span class="big">🏋️</span>
-        <p>Noch kein Trainingsplan angelegt.<br>Dein Tag A steht bereit — ein Tipp genügt.</p>
+        <p>Noch kein Trainingsplan angelegt.<br>Tag A und Tag B stehen bereit — ein Tipp genügt.</p>
       </div>
       <button class="btn primary" data-seed type="button">Meinen Plan anlegen</button>
       <button class="btn quiet" data-new-day type="button">Lieber selbst anlegen</button>
@@ -101,7 +101,7 @@ function viewTraining() {
     viewEl.querySelector('[data-new-day]').addEventListener('click', () => newDay());
     viewEl.querySelector('[data-seed]').addEventListener('click', () => {
       S.seedMyPlan();
-      toast('Tag A angelegt');
+      toast('Tag A und Tag B angelegt');
       go('plan');
     });
     return;
@@ -325,6 +325,29 @@ function updateSessionSubtitle(session) {
   if (sub) sub.textContent = `${S.formatDate(session.date)} · ${S.countDoneSets(session)} Sätze erledigt`;
 }
 
+/** Die beiden Eigenschaften einer Übung, als Menüeinträge. */
+function flagActions(exerciseId, after) {
+  const ex = S.exerciseById(exerciseId);
+  return [
+    {
+      label: ex && ex.unilateral ? 'Einarmig (L/R) ausschalten' : 'Als einarmig markieren (L/R)',
+      sub: 'Wiederholungen getrennt für links und rechts.',
+      run: () => {
+        S.updateExercise(exerciseId, { unilateral: !(ex && ex.unilateral) });
+        after();
+      },
+    },
+    {
+      label: ex && ex.assisted ? 'Unterstützungsgewicht aus' : 'Als Unterstützungsgewicht markieren',
+      sub: 'Mehr Gewicht = mehr Hilfe (Klimmzugmaschine). Dreht Bestwert und Fortschritt um.',
+      run: () => {
+        S.updateExercise(exerciseId, { assisted: !(ex && ex.assisted) });
+        after();
+      },
+    },
+  ];
+}
+
 function entryMenu(session, entryId) {
   const entry = S.entryById(session, entryId);
   const ex = S.exerciseById(entry.exerciseId);
@@ -361,16 +384,12 @@ function entryMenu(session, entryId) {
   }
 
   actions.push(
-    {
-      label: ex && ex.unilateral ? 'Einseitig (L/R) ausschalten' : 'Als einseitig markieren (L/R)',
-      sub: 'Gilt dauerhaft für diese Übung.',
-      run: () => {
-        const updated = S.updateExercise(entry.exerciseId, { unilateral: !(ex && ex.unilateral) });
-        entry.unilateral = !!(updated && updated.unilateral);
-        S.save();
-        render();
-      },
-    },
+    ...flagActions(entry.exerciseId, () => {
+      const updated = S.exerciseById(entry.exerciseId);
+      entry.unilateral = !!(updated && updated.unilateral);
+      S.save();
+      render();
+    }),
     { label: 'Verlauf dieser Übung', run: () => go('verlauf', 'exercise', entry.exerciseId) },
     {
       label: 'Übung aus diesem Training entfernen',
@@ -429,7 +448,7 @@ function pickSubstitute(session, entry) {
 function lastHint(exerciseId) {
   const last = S.lastPerformance(exerciseId);
   if (!last) return 'Noch kein Verlauf';
-  const best = S.bestSet(last.sets, last.unilateral);
+  const best = S.bestSet(last.sets, last.unilateral, S.isAssisted(exerciseId));
   return `Zuletzt ${S.relativeDate(last.date)} · ${best ? stripTags(setLabel(best, last.unilateral)) : ''}`;
 }
 
@@ -551,7 +570,7 @@ function viewPlan() {
     viewEl.querySelector('[data-new-day]').addEventListener('click', () => newDay());
     viewEl.querySelector('[data-seed]').addEventListener('click', () => {
       S.seedMyPlan();
-      toast('Tag A angelegt');
+      toast('Tag A und Tag B angelegt');
       render();
     });
     return;
@@ -629,7 +648,7 @@ function viewDay() {
                   <div class="row-main">
                     <div class="row-title">${esc(S.exerciseName(slot.exerciseId))}</div>
                     <div class="row-sub">
-                      ${slot.targetReps ? `Ziel ${slot.targetSets}×${esc(slot.targetReps)}` : `${slot.targetSets} Sätze`}${S.exerciseById(slot.exerciseId)?.unilateral ? ' · einseitig' : ''} · ${esc(lastHint(slot.exerciseId))}
+                      ${slot.targetReps ? `Ziel ${slot.targetSets}×${esc(slot.targetReps)}` : `${slot.targetSets} Sätze`}${S.exerciseById(slot.exerciseId)?.unilateral ? ' · einarmig' : ''} · ${esc(lastHint(slot.exerciseId))}
                     </div>
                   </div>
                   <span class="row-chev">⋯</span>
@@ -754,14 +773,7 @@ function slotMenu(day, slotId) {
       sub: slot.targetReps ? `${slot.targetSets}×${slot.targetReps}` : `${slot.targetSets} Sätze, kein Wdh-Ziel`,
       run: () => editTarget(day, slot),
     },
-      {
-        label: ex && ex.unilateral ? 'Einseitig (L/R) ausschalten' : 'Als einseitig markieren (L/R)',
-        sub: 'Erfasst Wiederholungen getrennt für links und rechts.',
-        run: () => {
-          S.updateExercise(slot.exerciseId, { unilateral: !(ex && ex.unilateral) });
-          render();
-        },
-      },
+      ...flagActions(slot.exerciseId, render),
       { label: 'Verlauf ansehen', run: () => go('verlauf', 'exercise', slot.exerciseId) },
       { label: 'Nach oben schieben', run: () => { S.moveSlot(day.id, slot.id, -1); render(); } },
       { label: 'Nach unten schieben', run: () => { S.moveSlot(day.id, slot.id, 1); render(); } },
@@ -831,7 +843,7 @@ function editTarget(day, slot) {
   });
 }
 
-/** Sheet zum Anlegen einer neuen Übung (Name + einseitig). */
+/** Sheet zum Anlegen einer neuen Übung (Name + Eigenschaften). */
 function newExerciseSheet(prefill, onDone) {
   sheet({
     title: 'Neue Übung',
@@ -844,8 +856,15 @@ function newExerciseSheet(prefill, onDone) {
       <label class="check-row">
         <input id="ex-uni" type="checkbox">
         <span>
-          <div class="t">Einseitige Übung (L/R)</div>
+          <div class="t">Einarmige Übung (L/R)</div>
           <div class="s">Wiederholungen werden getrennt für links und rechts erfasst.</div>
+        </span>
+      </label>
+      <label class="check-row">
+        <input id="ex-assist" type="checkbox">
+        <span>
+          <div class="t">Unterstützungsgewicht</div>
+          <div class="s">Mehr Gewicht = mehr Hilfe (z. B. Klimmzugmaschine). Bestwert und Fortschritt zählen dann andersherum.</div>
         </span>
       </label>
       <button class="btn primary" data-ok type="button">Anlegen</button>
@@ -862,7 +881,11 @@ function newExerciseSheet(prefill, onDone) {
           toast('Übung gab es schon — Verlauf wiederverwendet');
           return onDone(existing);
         }
-        const ex = S.addExercise({ name, unilateral: root.querySelector('#ex-uni').checked });
+        const ex = S.addExercise({
+          name,
+          unilateral: root.querySelector('#ex-uni').checked,
+          assisted: root.querySelector('#ex-assist').checked,
+        });
         close();
         onDone(ex);
       };
@@ -942,13 +965,7 @@ function exerciseMenu(id) {
           },
         }),
     },
-    {
-      label: ex.unilateral ? 'Einseitig (L/R) ausschalten' : 'Als einseitig markieren (L/R)',
-      run: () => {
-        S.updateExercise(id, { unilateral: !ex.unilateral });
-        render();
-      },
-    },
+    ...flagActions(id, render),
     { label: 'Verlauf ansehen', sub: `${usage} Sätze protokolliert`, run: () => go('verlauf', 'exercise', id) },
   ];
 
@@ -1098,9 +1115,9 @@ function sparkline(points) {
 
 function deltaTag(delta) {
   if (!delta) return '';
-  const up = delta.value > 0;
-  const value = `${up ? '+' : '−'}${fmtW(Math.abs(delta.value))} ${delta.kind}`;
-  return `<span class="delta ${up ? 'up' : 'down'}">${esc(value)}</span>`;
+  const value = `${delta.value > 0 ? '+' : '−'}${fmtW(Math.abs(delta.value))} ${delta.kind}`;
+  // Grün heißt "besser" — bei Unterstützungsgewicht ist das ein Minus.
+  return `<span class="delta ${delta.better ? 'up' : 'down'}">${esc(value)}</span>`;
 }
 
 function viewExerciseHistory() {
@@ -1108,9 +1125,11 @@ function viewExerciseHistory() {
   if (!ex) return back();
   const prog = S.exerciseProgress(ex.id);
 
+  const assisted = !!ex.assisted;
+
   setTop({
     title: ex.name,
-    sub: `${prog.length} Einträge${ex.unilateral ? ' · einseitig (L/R)' : ''}`,
+    sub: `${prog.length} Einträge${ex.unilateral ? ' · einarmig (L/R)' : ''}${assisted ? ' · weniger Gewicht = besser' : ''}`,
     left: { label: '‹ Zurück', run: back },
   });
 
@@ -1120,28 +1139,37 @@ function viewExerciseHistory() {
   }
 
   const allSets = prog.flatMap((h) => h.sets);
-  const record = S.bestSet(allSets, ex.unilateral);
+  const record = S.bestSet(allSets, ex.unilateral, assisted);
   const latest = prog[0];
   const chrono = [...prog].reverse();
   const totalSets = allSets.length;
+  const points = chrono.filter((h) => h.top != null).map((h) => ({ date: h.date, value: h.top }));
 
   viewEl.innerHTML = html`
     <div class="stat-grid">
-      <div class="stat"><div class="k">Bestwert</div><div class="v">${record ? setLabel(record, ex.unilateral) : '–'}</div></div>
+      <div class="stat">
+        <div class="k">${assisted ? 'Bestwert (wenigste Hilfe)' : 'Bestwert'}</div>
+        <div class="v">${record ? setLabel(record, ex.unilateral) : '–'}</div>
+      </div>
       <div class="stat"><div class="k">Letztes Mal</div><div class="v">${latest.best ? setLabel(latest.best, ex.unilateral) : '–'}</div></div>
       <div class="stat"><div class="k">Einträge · Sätze</div><div class="v">${prog.length} · ${totalSets}</div></div>
-      <div class="stat"><div class="k">Volumen zuletzt</div><div class="v">${fmtInt(latest.volume)} kg</div></div>
+      ${
+        assisted
+          ? `<div class="stat"><div class="k">Sätze gesamt</div><div class="v">${totalSets}</div></div>`
+          : `<div class="stat"><div class="k">Volumen zuletzt</div><div class="v">${fmtInt(latest.volume || 0)} kg</div></div>`
+      }
     </div>
 
     ${
-      chrono.length > 1
+      points.length > 1
         ? html`
-            <div class="section-title">Schwerster Satz im Verlauf</div>
+            <div class="section-title">${assisted ? 'Unterstützung im Verlauf' : 'Schwerster Satz im Verlauf'}</div>
+            ${assisted ? '<p class="tiny muted" style="margin:-4px 4px 8px">Weniger Gewicht heißt weniger Hilfe — hier ist eine fallende Linie der Fortschritt.</p>' : ''}
             <div class="chart-card">
-              ${sparkline(chrono.map((h) => ({ date: h.date, value: h.top })))}
+              ${sparkline(points)}
               <div class="chart-foot">
-                <span>${esc(S.formatDate(chrono[0].date))}</span>
-                <span>${esc(S.formatDate(chrono[chrono.length - 1].date))}</span>
+                <span>${esc(S.formatDate(points[0].date))}</span>
+                <span>${esc(S.formatDate(points[points.length - 1].date))}</span>
               </div>
             </div>
           `
@@ -1162,7 +1190,7 @@ function viewExerciseHistory() {
               </div>
               <div class="hist-sets">${setsSummary(h.sets, ex.unilateral, h.best)}</div>
               <div class="hist-meta">
-                <span>${h.sets.length} Sätze · ${fmtInt(h.volume)} kg Volumen</span>
+                <span>${h.sets.length} Sätze${h.volume != null ? ` · ${fmtInt(h.volume)} kg Volumen` : ''}</span>
                 ${deltaTag(h.delta)}
               </div>
             </div>
@@ -1198,7 +1226,8 @@ function viewSessionDetail() {
         .map((entry) => {
           const wasSub = entry.plannedExerciseId && entry.plannedExerciseId !== entry.exerciseId;
           const info = S.exerciseProgress(entry.exerciseId).find((h) => h.entryId === entry.id);
-          const best = info ? info.best : S.bestSet(entry.sets, entry.unilateral);
+          const best = info ? info.best : S.bestSet(entry.sets, entry.unilateral, S.isAssisted(entry.exerciseId));
+          const vol = S.entryVolume(entry);
           return html`
             <button class="hist-entry tappable" data-ex="${entry.exerciseId}" type="button">
               <div class="hist-date">
@@ -1208,7 +1237,7 @@ function viewSessionDetail() {
               </div>
               <div class="hist-sets">${setsSummary(entry.sets, entry.unilateral, best)}</div>
               <div class="hist-meta">
-                <span>${entry.sets.length} Sätze · ${fmtInt(S.entryVolume(entry))} kg Volumen</span>
+                <span>${entry.sets.length} Sätze${vol != null ? ` · ${fmtInt(vol)} kg Volumen` : ''}</span>
                 ${deltaTag(info && info.delta)}
               </div>
             </button>
@@ -1267,7 +1296,7 @@ function viewMehr() {
     <div class="list">
       <button class="row" data-exercises type="button">
         <div class="row-main"><div class="row-title">Übungen verwalten</div>
-        <div class="row-sub">Umbenennen, archivieren, einseitig markieren</div></div>
+        <div class="row-sub">Umbenennen, archivieren, Eigenschaften ändern</div></div>
         <span class="row-chev">›</span>
       </button>
     </div>

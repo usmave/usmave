@@ -78,48 +78,45 @@ await wait(400);
 step('Leerzustand → eigener Plan');
 await page.getByText('Meinen Plan anlegen').click();
 await wait();
-ok(await page.getByText('Tag A').first().isVisible(), 'Tag A angelegt');
-ok((await page.locator('[data-day]').count()) === 1, 'genau ein Trainingstag');
+ok((await page.locator('[data-day]').count()) === 2, 'Tag A und Tag B angelegt');
 await shot('plan');
 
-step('Zweiten Trainingstag anlegen');
-await page.locator('[data-new-day]').click();
-await wait();
-await page.locator('#prompt-input').fill('Tag B');
-await page.locator('[data-ok]').click();
-await wait(300);
-await page.locator('[data-add-slot]').click();
-await wait();
-await page.locator('[data-create]').click();
-await wait(250);
-await page.locator('#ex-name').fill('Beinpresse');
-await page.locator('[data-ok]').click();
-await wait(300);
-ok((await page.locator('[data-slot]').count()) === 1, 'Tag B hat eine Übung');
-
-step('Tag A: Seitheben ist einarmig hinterlegt');
-await page.locator('[data-top="left"]').click(); // zurück zur Planübersicht
-await wait(250);
+step('Tag A: sieben Übungen, Seitheben einarmig');
 await page.locator('[data-day]').first().click();
 await wait(250);
 ok((await page.locator('[data-slot]').count()) === 7, 'Tag A hat sieben Übungen');
 ok(
-  (await page.locator('[data-slot]').nth(4).innerText()).includes('einseitig'),
+  (await page.locator('[data-slot]').nth(4).innerText()).includes('einarmig'),
   'Seitheben Kabel ist als einarmig markiert'
 );
 await shot('plan-tag-a');
 
-step('Einseitig lässt sich an- und wieder abschalten');
+step('Einarmig lässt sich an- und wieder abschalten');
 await page.locator('[data-slot]').nth(5).click();
 await wait(250);
-await page.getByText('Als einseitig markieren (L/R)').click();
+await page.getByText('Als einarmig markieren (L/R)').click();
 await wait(300);
-ok((await page.locator('[data-slot]').nth(5).innerText()).includes('einseitig'), 'eingeschaltet');
+ok((await page.locator('[data-slot]').nth(5).innerText()).includes('einarmig'), 'eingeschaltet');
 await page.locator('[data-slot]').nth(5).click();
 await wait(250);
-await page.getByText('Einseitig (L/R) ausschalten').click();
+await page.getByText('Einarmig (L/R) ausschalten').click();
 await wait(300);
-ok(!(await page.locator('[data-slot]').nth(5).innerText()).includes('einseitig'), 'wieder ausgeschaltet');
+ok(!(await page.locator('[data-slot]').nth(5).innerText()).includes('einarmig'), 'wieder ausgeschaltet');
+
+step('Tag B: sechs Übungen, Klimmzugmaschine mit Unterstützungsgewicht');
+await page.locator('[data-top="left"]').click();
+await wait(250);
+await page.locator('[data-day]').nth(1).click();
+await wait(250);
+ok((await page.locator('[data-slot]').count()) === 6, 'Tag B hat sechs Übungen');
+await page.locator('[data-slot]').first().click();
+await wait(250);
+ok(
+  await page.getByText('Unterstützungsgewicht aus').isVisible(),
+  'Klimmzugmaschine ist als Unterstützungsgewicht hinterlegt'
+);
+await page.locator('[data-close]').first().click();
+await wait();
 
 step('Training starten — Tag A ist dran');
 await tab('training');
@@ -261,6 +258,51 @@ await page.locator('.hist-entry.tappable').first().click();
 await wait(250);
 ok((await page.locator('.hist-entry').count()) > 0, 'Sprung in den Übungsverlauf klappt');
 
+step('Unterstützungsgewicht: zweimal Tag B mit weniger Hilfe');
+await tab('training');
+await page.locator('.next-card [data-start]').click(); // Tag B
+await wait(300);
+ok((await card(0).locator('.card-title').innerText()).includes('Klimmzugmaschine'), 'Tag B beginnt mit der Klimmzugmaschine');
+await fill(0, 'weight', '50');
+await fill(0, 'reps', '8');
+await check(0);
+await page.locator('[data-finish]').click();
+await wait();
+await page.locator('[data-yes]').click();
+await wait(300);
+
+await page.locator('.list [data-start]').first().click(); // nochmal Tag B
+await wait(300);
+ok(
+  (await card(0).locator('[data-set-field="weight"]').first().getAttribute('placeholder')) === '50',
+  'Vorschlag vom letzten Mal steht drin'
+);
+await fill(0, 'weight', '45'); // weniger Hilfe = besser
+await fill(0, 'reps', '8');
+await check(0);
+await page.locator('[data-finish]').click();
+await wait();
+await page.locator('[data-yes]').click();
+await wait(300);
+
+step('Weniger Gewicht zählt hier als Fortschritt');
+await tab('verlauf');
+await page.locator('[data-mode="uebung"]').click();
+await wait();
+await page.getByText('Klimmzugmaschine').first().click();
+await wait(250);
+const hilfe = await page.locator('.view').innerText();
+ok(hilfe.includes('−5 kg'), `Veränderung ausgewiesen — gefunden: ${JSON.stringify(hilfe.match(/[+−][\d,]+ (kg|Wdh)/g))}`);
+ok((await page.locator('.delta.up').count()) === 1, 'weniger Gewicht ist grün (= besser)');
+ok((await page.locator('.badge-pr').count()) === 1, 'genau ein Bestwert — der leichtere Eintrag');
+ok(
+  (await page.locator('.hist-entry').first().innerText()).includes('Bestwert'),
+  'der Bestwert sitzt beim neuesten (leichtesten) Eintrag'
+);
+ok(!hilfe.includes('Volumen'), 'kein Volumen — wäre hier die falsche Richtung');
+ok((await page.locator('[data-top="left"]').isVisible()) && (await page.locator('.topbar .sub').innerText()).includes('weniger Gewicht = besser'), 'Hinweis in der Kopfzeile');
+await shot('assisted');
+
 step('Ersatz nach schon abgehaktem Satz: Sätze bleiben bei der alten Übung');
 await tab('training');
 await page.locator('.next-card [data-start]').click(); // Tag B
@@ -337,7 +379,7 @@ await page.locator('[data-close]').first().click();
 step('Neuladen: alles noch da');
 await page.reload();
 await wait(500);
-ok((await page.locator('.next-name').innerText()).includes('Tag B'), 'Tagesvorschlag übersteht Neuladen');
+ok((await page.locator('.next-name').innerText()).includes('Tag A'), 'Tagesvorschlag übersteht Neuladen');
 await tab('verlauf');
 ok((await page.locator('.view').innerText()).includes('Tag A'), 'Verlauf übersteht Neuladen');
 await shot('reload');

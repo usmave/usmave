@@ -20,7 +20,9 @@ ausschließlich auf dem iPhone.
 
 ## Dein Plan
 
-Beim ersten Start legt **Meinen Plan anlegen** Tag A fertig an:
+Beim ersten Start legt **Meinen Plan anlegen** beide Tage fertig an:
+
+**Tag A**
 
 | # | Übung | Sätze |
 |---|---|---|
@@ -32,13 +34,36 @@ Beim ersten Start legt **Meinen Plan anlegen** Tag A fertig an:
 | 6 | Trizepsdrücken Kabel | 2 |
 | 7 | Dips | 3 |
 
+**Tag B**
+
+| # | Übung | Sätze |
+|---|---|---|
+| 1 | Klimmzugmaschine *(Unterstützungsgewicht)* | 2 |
+| 2 | Kabelrudern eng | 2 |
+| 3 | Latzugmaschine sitzend *(einarmig, L/R getrennt)* | 2 |
+| 4 | Rudermaschine sitzend | 2 |
+| 5 | Butterfly Reverse | 2 |
+| 6 | Bizepscurls flach am Kabel | 2 |
+
 Wiederholungsziele stehen bewusst leer, weil keine vorgegeben waren — in der Übung
 steht dann einfach „2 Sätze". Nachtragen geht jederzeit über
 Plan → Übung → *Sätze / Wiederholungen ändern*.
 
-Tag B ist noch nicht hinterlegt. Bis dahin: Plan → **＋ Tag** → Übungen hinzufügen.
-Der Tagesvorschlag auf der Startseite wechselt automatisch zwischen allen
-angelegten Tagen, sobald zwei da sind.
+### Übungen mit Unterstützungsgewicht
+
+Bei der Klimmzugmaschine bedeutet **mehr Gewicht mehr Hilfe** — Fortschritt heißt dort
+also *weniger* Gewicht. Solche Übungen sind als *Unterstützungsgewicht* markiert, und
+die Auswertung dreht sich entsprechend um:
+
+- **Bestwert** ist der Satz mit der *geringsten* Hilfe.
+- Der Fortschritts-Chip wird bei einem **Minus** grün — `−5 kg` ist hier die
+  Verbesserung.
+- Im Graph ist eine **fallende** Linie der Fortschritt (steht als Hinweis dabei).
+- **Volumen entfällt**, denn Gewicht × Wiederholungen würde mit mehr Hilfe steigen.
+  Diese Übungen zählen auch nicht ins Gesamtvolumen eines Trainings.
+
+Umschalten lässt sich das jederzeit über Plan → Übung → *Als Unterstützungsgewicht
+markieren*, und beim Anlegen einer neuen Übung gibt es ein Häkchen dafür.
 
 ## Wie der Übungswechsel gedacht ist
 
@@ -68,16 +93,16 @@ Die Trainingsansicht ist bewusst karg gehalten — Übungsname, Ziel, Satzzeilen
   einen Blick, was heute schon wirklich steht.
 - Nur abgehakte Sätze landen im Verlauf; nicht abgehakte werden beim Beenden verworfen.
 - **＋ Satz** hängt eine Zeile an, *Letzten Satz entfernen* im ⋯-Menü nimmt eine weg.
-- Einseitige Übungen (Kurzhantel, einarmiges Rudern …) haben getrennte Felder für
-  **Wdh L** und **Wdh R** — dafür die Übung als *einseitig* markieren
-  (⋯-Menü an der Übung oder Plan → Übung → *Als einseitig markieren*).
+- Einarmige Übungen haben getrennte Felder für **Wdh L** und **Wdh R** — dafür die
+  Übung als *einarmig* markieren (⋯-Menü an der Übung oder Plan → Übung).
 
 ## Was der Verlauf zeigt
 
 **Pro Übung:** Bestwert, letzter Stand, Anzahl Einträge und Sätze, Volumen; darunter ein
 Graph des schwersten Satzes über die Zeit und jeder einzelne Eintrag mit Datum,
 Trainingstag, allen Sätzen (bester hervorgehoben), Volumen und der Veränderung zum
-Mal davor (z. B. `+2,5 kg`). Bestwerte sind markiert.
+Mal davor (z. B. `+2,5 kg`). Als **Bestwert** markiert wird ein Eintrag nur, wenn er
+den bisherigen wirklich schlägt — der allererste zählt nicht.
 
 **Pro Training:** Übungen, Sätze, Gesamtvolumen und Dauer, dann jede Übung mit ihren
 Sätzen, ihrem Volumen und ihrer Veränderung. Ein Tipp auf eine Übung springt in deren
@@ -119,5 +144,7 @@ npm i playwright
 node tools/smoke-test.mjs
 ```
 
-Prüft den kompletten Ablauf: Plan anlegen, Training protokollieren (auch L/R),
-Ersatzübung, Beenden, Verlauf, Übung ersetzen/archivieren/umbenennen, Reload.
+Prüft den kompletten Ablauf: Plan anlegen, Tagesrotation, Training protokollieren
+(auch L/R), Vorschlagsübernahme, Ersatzübung (auch mitten im Satz), Beenden, Verlauf
+mit Graph und Bestwert, umgekehrte Wertung beim Unterstützungsgewicht, Übung
+ersetzen/archivieren/umbenennen, Export und Reload.

@@ -96,11 +96,18 @@ function byName(a, b) {
   return a.name.localeCompare(b.name, 'de');
 }
 
-export function addExercise({ name, unilateral = false }) {
+/**
+ * @param {{name:string, unilateral?:boolean, assisted?:boolean}} opts
+ *   unilateral — Wiederholungen getrennt für links und rechts.
+ *   assisted   — Unterstützungsgewicht: weniger Gewicht ist die bessere Leistung
+ *                (Klimmzug-/Dipmaschine). Dreht Bestwert und Fortschritt um.
+ */
+export function addExercise({ name, unilateral = false, assisted = false }) {
   const ex = {
     id: uid(),
     name: name.trim(),
     unilateral: !!unilateral,
+    assisted: !!assisted,
     archived: false,
     createdAt: new Date().toISOString(),
   };
@@ -120,6 +127,7 @@ export function updateExercise(id, patch) {
   if (!ex) return null;
   if (typeof patch.name === 'string') ex.name = patch.name.trim();
   if (typeof patch.unilateral === 'boolean') ex.unilateral = patch.unilateral;
+  if (typeof patch.assisted === 'boolean') ex.assisted = patch.assisted;
   if (typeof patch.archived === 'boolean') ex.archived = patch.archived;
   save();
   return ex;
@@ -493,18 +501,13 @@ export function sessionDuration(session) {
 }
 
 export function sessionVolume(session) {
-  return session.entries.reduce(
-    (n, e) => n + e.sets.reduce((m, s) => m + setVolume(s, e.unilateral), 0),
-    0
-  );
+  return session.entries.reduce((n, e) => n + (entryVolume(e) || 0), 0);
 }
 
+/** null bei Unterstützungsgewicht — dort wäre mehr Volumen die schlechtere Leistung. */
 export function entryVolume(entry) {
+  if (isAssisted(entry.exerciseId)) return null;
   return entry.sets.reduce((n, s) => n + setVolume(s, entry.unilateral), 0);
-}
-
-export function topWeight(sets) {
-  return sets.reduce((max, s) => Math.max(max, Number(s.weight) || 0), 0);
 }
 
 export function discardSession(sessionId) {
@@ -562,28 +565,33 @@ export function exerciseHistory(exerciseId) {
  * Veränderung gegenüber dem Mal davor. Neueste zuerst.
  */
 export function exerciseProgress(exerciseId) {
-  const hits = exerciseHistory(exerciseId);
-  const chrono = [...hits].reverse();
-  let record = 0;
+  const assisted = isAssisted(exerciseId);
+  const chrono = exerciseHistory(exerciseId).reverse();
+  let record = null;
 
   const enriched = chrono.map((h, i) => {
-    const top = topWeight(h.sets);
-    const best = bestSet(h.sets, h.unilateral);
+    const top = topWeight(h.sets, h.unilateral, assisted);
+    const best = bestSet(h.sets, h.unilateral, assisted);
     const prev = i > 0 ? chrono[i - 1] : null;
-    const prevBest = prev ? bestSet(prev.sets, prev.unilateral) : null;
-    const isRecord = top > 0 && top > record;
-    record = Math.max(record, top);
+    const prevBest = prev ? bestSet(prev.sets, prev.unilateral, assisted) : null;
+
+    // Der allererste Eintrag ist kein "Bestwert" — das Wort soll heißen:
+    // du hast deinen bisherigen geschlagen.
+    const isRecord = top != null && record != null && (assisted ? top < record : top > record);
+    if (top != null) record = record == null ? top : assisted ? Math.min(record, top) : Math.max(record, top);
 
     let delta = null;
     if (best && prevBest) {
       const dw = (Number(best.weight) || 0) - (Number(prevBest.weight) || 0);
-      const reps = (s) => (h.unilateral ? Math.max(Number(s.repsL) || 0, Number(s.repsR) || 0) : Number(s.reps) || 0);
-      const dr = reps(best) - reps(prevBest);
-      if (dw) delta = { kind: 'kg', value: dw };
-      else if (dr) delta = { kind: 'Wdh', value: dr };
+      const dr = repsOf(best, h.unilateral) - repsOf(prevBest, h.unilateral);
+      if (dw) delta = { kind: 'kg', value: dw, better: assisted ? dw < 0 : dw > 0 };
+      else if (dr) delta = { kind: 'Wdh', value: dr, better: dr > 0 };
     }
 
-    return { ...h, top, best, volume: h.sets.reduce((n, s) => n + setVolume(s, h.unilateral), 0), isRecord, delta };
+    // Volumen ist bei Unterstützungsgewicht sinnlos: mehr Hilfe ergäbe mehr "Volumen".
+    const volume = assisted ? null : h.sets.reduce((n, s) => n + setVolume(s, h.unilateral), 0);
+
+    return { ...h, assisted, top, best, volume, isRecord, delta };
   });
 
   return enriched.reverse();
@@ -595,14 +603,42 @@ export function setVolume(set, unilateral) {
   return w * reps;
 }
 
-export function bestSet(sets, unilateral) {
+export function isAssisted(exerciseId) {
+  const ex = exerciseById(exerciseId);
+  return !!(ex && ex.assisted);
+}
+
+function repsOf(set, unilateral) {
+  return unilateral
+    ? Math.max(Number(set.repsL) || 0, Number(set.repsR) || 0)
+    : Number(set.reps) || 0;
+}
+
+/**
+ * Bester Satz. Normalerweise der schwerste; bei Unterstützungsgewicht
+ * (Klimmzugmaschine) genau umgekehrt der mit der geringsten Hilfe.
+ */
+export function bestSet(sets, unilateral, assisted = false) {
   let best = null;
   for (const s of sets) {
-    const w = Number(s.weight) || 0;
-    const r = unilateral ? Math.max(Number(s.repsL) || 0, Number(s.repsR) || 0) : Number(s.reps) || 0;
-    if (!best || w > best.w || (w === best.w && r > best.r)) best = { set: s, w, r };
+    const raw = Number(s.weight);
+    const w = Number.isFinite(raw) ? raw : assisted ? Infinity : 0;
+    const r = repsOf(s, unilateral);
+    if (!best) {
+      best = { set: s, w, r };
+      continue;
+    }
+    const better = assisted ? w < best.w || (w === best.w && r > best.r) : w > best.w || (w === best.w && r > best.r);
+    if (better) best = { set: s, w, r };
   }
   return best ? best.set : null;
+}
+
+/** Das aussagekräftige Gewicht eines Eintrags — schwerster bzw. leichtester Satz. */
+export function topWeight(sets, unilateral, assisted = false) {
+  const best = bestSet(sets, unilateral, assisted);
+  const w = best ? Number(best.weight) : NaN;
+  return Number.isFinite(w) ? w : null;
 }
 
 /* ------------------------------------------------------------ Export/Import */
@@ -644,18 +680,25 @@ export function resetAll() {
  * lassen sich pro Übung jederzeit im Plan nachtragen.
  */
 export function seedMyPlan() {
-  const mk = (name, unilateral = false) => addExercise({ name, unilateral }).id;
-  const a = addDay('Tag A');
-  const slot = (dayId, name, sets, unilateral = false) =>
-    addSlot(dayId, { exerciseId: mk(name, unilateral), targetSets: sets, targetReps: '' });
+  const slot = (dayId, name, sets, flags = {}) =>
+    addSlot(dayId, { exerciseId: addExercise({ name, ...flags }).id, targetSets: sets, targetReps: '' });
 
+  const a = addDay('Tag A');
   slot(a.id, 'Bankdrückmaschine flach', 2);
   slot(a.id, 'Butterflymaschine', 2);
   slot(a.id, 'Bankdrückmaschine sitzend', 2);
   slot(a.id, 'Schulterdrücken Maschine sitzend', 2);
-  slot(a.id, 'Seitheben Kabel', 2, true); // einarmig: Wdh links/rechts getrennt
+  slot(a.id, 'Seitheben Kabel', 2, { unilateral: true });
   slot(a.id, 'Trizepsdrücken Kabel', 2);
   slot(a.id, 'Dips', 3);
+
+  const b = addDay('Tag B');
+  slot(b.id, 'Klimmzugmaschine', 2, { assisted: true }); // mehr Gewicht = mehr Hilfe
+  slot(b.id, 'Kabelrudern eng', 2);
+  slot(b.id, 'Latzugmaschine sitzend', 2, { unilateral: true });
+  slot(b.id, 'Rudermaschine sitzend', 2);
+  slot(b.id, 'Butterfly Reverse', 2);
+  slot(b.id, 'Bizepscurls flach am Kabel', 2);
 
   writeNow();
 }
