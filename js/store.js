@@ -67,7 +67,15 @@ function migrate(data) {
     ...data,
     schema: SCHEMA,
     exercises: Array.isArray(data.exercises) ? data.exercises : [],
-    days: Array.isArray(data.days) ? data.days : [],
+    days: (Array.isArray(data.days) ? data.days : []).map((day) => ({
+      ...day,
+      slots: (day.slots || []).map((slot) => ({
+        ...slot,
+        // Ältere Stände hatten ein Ziel je Übung statt je Satz.
+        setTargets: normalizeTargets(slot.setTargets, slot.targetSets, slot.targetReps),
+        targetSets: normalizeTargets(slot.setTargets, slot.targetSets, slot.targetReps).length,
+      })),
+    })),
     sessions: Array.isArray(data.sessions) ? data.sessions : [],
     settings: { ...base.settings, ...(data.settings || {}) },
   };
@@ -187,13 +195,25 @@ export function moveDay(id, dir) {
 
 /* -------------------------------------------------------------- Plan-Plätze */
 
-export function addSlot(dayId, { exerciseId, targetSets = 3, targetReps = '10' }) {
+/**
+ * Ein Platz im Plan. Das Wiederholungsziel hängt am einzelnen Satz, nicht an der
+ * Übung: `setTargets: ['3-6', '12-15']` heißt erster Satz schwer, zweiter leichter.
+ * Ein leerer Eintrag bedeutet: kein Limit für diesen Satz.
+ */
+export function addSlot(dayId, { exerciseId, targetSets = 3, setTargets = null, targetReps = '' }) {
   const day = dayById(dayId);
   if (!day) return null;
-  const slot = { id: uid(), exerciseId, targetSets, targetReps: String(targetReps) };
+  const targets = normalizeTargets(setTargets, targetSets, targetReps);
+  const slot = { id: uid(), exerciseId, targetSets: targets.length, setTargets: targets };
   day.slots.push(slot);
   save();
   return slot;
+}
+
+function normalizeTargets(setTargets, count, fallback = '') {
+  if (Array.isArray(setTargets) && setTargets.length) return setTargets.map((t) => String(t ?? '').trim());
+  const n = Math.max(1, Number(count) || 1);
+  return Array.from({ length: n }, () => String(fallback ?? '').trim());
 }
 
 export function updateSlot(dayId, slotId, patch) {
@@ -201,10 +221,23 @@ export function updateSlot(dayId, slotId, patch) {
   const slot = day && day.slots.find((s) => s.id === slotId);
   if (!slot) return null;
   if (patch.exerciseId) slot.exerciseId = patch.exerciseId;
-  if (patch.targetSets != null) slot.targetSets = Number(patch.targetSets) || 1;
-  if (patch.targetReps != null) slot.targetReps = String(patch.targetReps);
+  if (Array.isArray(patch.setTargets)) {
+    slot.setTargets = patch.setTargets.map((t) => String(t ?? '').trim());
+    slot.targetSets = slot.setTargets.length;
+  } else if (patch.targetSets != null) {
+    const n = Math.max(1, Number(patch.targetSets) || 1);
+    const old = slot.setTargets || [];
+    slot.setTargets = Array.from({ length: n }, (_, i) => old[i] ?? '');
+    slot.targetSets = n;
+  }
   save();
   return slot;
+}
+
+/** "3-6 · 12-15" bzw. null, wenn für keinen Satz ein Ziel gesetzt ist. */
+export function targetLabel(slot) {
+  const t = slot.setTargets || [];
+  return t.some(Boolean) ? t.map((x) => x || '–').join(' · ') : null;
 }
 
 export function removeSlot(dayId, slotId) {
@@ -321,7 +354,7 @@ function makeEntry(slot) {
     plannedExerciseId: slot.exerciseId,
     exerciseId: slot.exerciseId,
     targetSets: slot.targetSets,
-    targetReps: slot.targetReps,
+    setTargets: [...(slot.setTargets || [])],
     unilateral: !!(ex && ex.unilateral),
     sets: Array.from({ length: count }, (_, i) => blankSet(pickSet(last, i), ex)),
   };
@@ -440,7 +473,7 @@ export function substituteEntry(session, entryId, exerciseId) {
       plannedExerciseId: entry.plannedExerciseId,
       exerciseId,
       targetSets: rest,
-      targetReps: entry.targetReps,
+      setTargets: (entry.setTargets || []).slice(doneSets.length),
       unilateral: !!(ex && ex.unilateral),
       sets: Array.from({ length: rest }, (_, i) => blankSet(pickSet(last, i), ex)),
     };
@@ -467,7 +500,7 @@ export function addEntry(session, exerciseId) {
     plannedExerciseId: null,
     exerciseId,
     targetSets: count,
-    targetReps: '',
+    setTargets: [],
     unilateral: !!(ex && ex.unilateral),
     sets: Array.from({ length: count }, (_, i) => blankSet(pickSet(last, i), ex)),
   };
@@ -680,8 +713,14 @@ export function resetAll() {
  * lassen sich pro Übung jederzeit im Plan nachtragen.
  */
 export function seedMyPlan() {
+  // Zwei Sätze: erster schwer (3-6), zweiter leichter (12-15).
+  // Mehr Sätze: kein Limit je Satz — bis nicht mehr geht.
+  const targetsFor = (sets) => (sets === 2 ? ['3-6', '12-15'] : Array.from({ length: sets }, () => ''));
   const slot = (dayId, name, sets, flags = {}) =>
-    addSlot(dayId, { exerciseId: addExercise({ name, ...flags }).id, targetSets: sets, targetReps: '' });
+    addSlot(dayId, {
+      exerciseId: addExercise({ name, ...flags }).id,
+      setTargets: targetsFor(sets),
+    });
 
   const a = addDay('Tag A');
   slot(a.id, 'Bankdrückmaschine flach', 2);

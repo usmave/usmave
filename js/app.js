@@ -226,7 +226,7 @@ function entryCard(session, entry) {
   const ex = S.exerciseById(entry.exerciseId);
   const uni = !!entry.unilateral;
   const substituted = entry.plannedExerciseId && entry.plannedExerciseId !== entry.exerciseId;
-  const target = entry.targetReps ? `${entry.targetSets}×${entry.targetReps}` : `${entry.targetSets} Sätze`;
+  const target = `${entry.targetSets || entry.sets.length} Sätze`;
   const complete = entry.sets.length > 0 && entry.sets.every((s) => s.done);
 
   return html`
@@ -250,6 +250,7 @@ function entryCard(session, entry) {
 
 function setRow(entry, set, i, uni) {
   const sug = set.suggest || {};
+  const goal = (entry.setTargets || [])[i] || '';
   const inp = (field, value, fallback) => {
     const hint = sug[field] != null ? fmtW(sug[field]) : fallback;
     return html`
@@ -261,7 +262,10 @@ function setRow(entry, set, i, uni) {
   };
   return html`
     <div class="set-row ${uni ? 'uni' : ''} ${set.done ? 'done' : ''}" data-set-row="${set.id}">
-      <div class="set-no">${i + 1}</div>
+      <div class="set-no">
+        <span class="n">${i + 1}</span>
+        ${goal ? `<span class="goal">${esc(goal)}</span>` : ''}
+      </div>
       ${inp('weight', set.weight, 'kg')}
       ${uni ? inp('repsL', set.repsL, 'L') + inp('repsR', set.repsR, 'R') : inp('reps', set.reps, 'Wdh')}
       <button class="set-check" data-toggle="${set.id}" data-entry="${entry.id}" type="button"
@@ -648,7 +652,8 @@ function viewDay() {
                   <div class="row-main">
                     <div class="row-title">${esc(S.exerciseName(slot.exerciseId))}</div>
                     <div class="row-sub">
-                      ${slot.targetReps ? `Ziel ${slot.targetSets}×${esc(slot.targetReps)}` : `${slot.targetSets} Sätze`}${S.exerciseById(slot.exerciseId)?.unilateral ? ' · einarmig' : ''} · ${esc(lastHint(slot.exerciseId))}
+                      ${S.targetLabel(slot) ? `${slot.targetSets} Sätze · Ziel ${esc(S.targetLabel(slot))}` : `${slot.targetSets} Sätze · kein Limit`}${S.exerciseById(slot.exerciseId)?.unilateral ? ' · einarmig' : ''}
+                      <br>${esc(lastHint(slot.exerciseId))}
                     </div>
                   </div>
                   <span class="row-chev">⋯</span>
@@ -770,7 +775,7 @@ function slotMenu(day, slotId) {
       },
       {
       label: 'Sätze / Wiederholungen ändern',
-      sub: slot.targetReps ? `${slot.targetSets}×${slot.targetReps}` : `${slot.targetSets} Sätze, kein Wdh-Ziel`,
+      sub: S.targetLabel(slot) ? `${slot.targetSets} Sätze · ${S.targetLabel(slot)}` : `${slot.targetSets} Sätze, kein Limit`,
       run: () => editTarget(day, slot),
     },
       ...flagActions(slot.exerciseId, render),
@@ -813,29 +818,47 @@ function replaceSlotFlow(day, slot) {
   });
 }
 
+/** Sätze und das Wiederholungsziel je einzelnem Satz bearbeiten. */
 function editTarget(day, slot) {
+  const targetRows = (targets) =>
+    targets
+      .map(
+        (t, i) => html`
+          <div class="goal-row">
+            <span class="goal-no">Satz ${i + 1}</span>
+            <input type="text" data-goal value="${esc(t)}" placeholder="kein Limit" autocomplete="off">
+          </div>
+        `
+      )
+      .join('');
+
   sheet({
-    title: 'Ziel ändern',
+    title: 'Sätze & Wiederholungen',
     body: html`
-      <div class="two-cols">
-        <div class="field">
-          <label for="ts">Sätze</label>
-          <input id="ts" type="number" inputmode="numeric" min="1" max="20" value="${slot.targetSets}">
-        </div>
-        <div class="field">
-          <label for="tr">Wiederholungen</label>
-          <input id="tr" type="text" value="${esc(slot.targetReps)}" placeholder="z. B. 8-12">
-        </div>
+      <div class="field">
+        <label for="ts">Anzahl Sätze</label>
+        <input id="ts" type="number" inputmode="numeric" min="1" max="12" value="${slot.targetSets}">
       </div>
-      <p class="tiny muted" style="margin:-6px 0 14px">Wiederholungen dürfen leer bleiben — dann steht in der Übung nur die Satzzahl.</p>
+      <div data-goals>${targetRows(slot.setTargets || [])}</div>
+      <p class="tiny muted" style="margin:2px 0 14px">
+        Ziel je Satz, z. B. <b>3-6</b> für schwer und <b>12-15</b> für leicht.
+        Leer heißt: kein Limit, bis nicht mehr geht.
+      </p>
       <button class="btn primary" data-ok type="button">Speichern</button>
     `,
     onMount(root, close) {
+      const list = root.querySelector('[data-goals]');
+      const count = root.querySelector('#ts');
+      const values = () => [...list.querySelectorAll('[data-goal]')].map((i) => i.value.trim());
+
+      count.addEventListener('input', () => {
+        const n = Math.min(12, Math.max(1, Number(count.value) || 1));
+        const old = values();
+        list.innerHTML = targetRows(Array.from({ length: n }, (_, i) => old[i] ?? ''));
+      });
+
       root.querySelector('[data-ok]').addEventListener('click', () => {
-        S.updateSlot(day.id, slot.id, {
-          targetSets: root.querySelector('#ts').value,
-          targetReps: root.querySelector('#tr').value,
-        });
+        S.updateSlot(day.id, slot.id, { setTargets: values() });
         close();
         render();
       });

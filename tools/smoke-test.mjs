@@ -89,7 +89,33 @@ ok(
   (await page.locator('[data-slot]').nth(4).innerText()).includes('einarmig'),
   'Seitheben Kabel ist als einarmig markiert'
 );
+ok(
+  (await page.locator('[data-slot]').first().innerText()).includes('3-6 · 12-15'),
+  'Zwei-Satz-Übung: Ziel je Satz im Plan'
+);
+ok(
+  (await page.locator('[data-slot]').nth(6).innerText()).includes('kein Limit'),
+  'Dips: kein Limit je Satz'
+);
 await shot('plan-tag-a');
+
+step('Satzziele lassen sich ändern');
+await page.locator('[data-slot]').nth(1).click();
+await wait(250);
+await page.getByText('Sätze / Wiederholungen ändern').click();
+await wait(250);
+ok((await page.locator('[data-goal]').count()) === 2, 'ein Feld je Satz');
+await page.locator('[data-goal]').nth(1).fill('10-12');
+await page.locator('[data-ok]').click();
+await wait(300);
+ok((await page.locator('[data-slot]').nth(1).innerText()).includes('3-6 · 10-12'), 'geändertes Ziel steht im Plan');
+await page.locator('[data-slot]').nth(1).click();
+await wait(250);
+await page.getByText('Sätze / Wiederholungen ändern').click();
+await wait(250);
+await page.locator('[data-goal]').nth(1).fill('12-15');
+await page.locator('[data-ok]').click();
+await wait(300);
 
 step('Einarmig lässt sich an- und wieder abschalten');
 await page.locator('[data-slot]').nth(5).click();
@@ -127,6 +153,9 @@ ok((await page.locator('[data-entry-card]').count()) === 7, 'sieben Übungen im 
 ok((await card(0).locator('.set-row').count()) === 2, 'Bankdrückmaschine flach mit zwei Sätzen');
 ok((await card(6).locator('.set-row').count()) === 3, 'Dips mit drei Sätzen');
 ok((await page.locator('.set-row.uni').count()) === 2, 'Seitheben hat L/R-Felder');
+ok((await card(0).locator('.set-no .goal').nth(0).innerText()) === '3-6', 'Satz 1 zeigt Ziel 3-6');
+ok((await card(0).locator('.set-no .goal').nth(1).innerText()) === '12-15', 'Satz 2 zeigt Ziel 12-15');
+ok((await card(6).locator('.set-no .goal').count()) === 0, 'Dips zeigt kein Satzziel');
 await shot('session');
 
 step('Sätze eintragen');

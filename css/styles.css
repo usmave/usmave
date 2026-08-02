@@ -320,9 +320,9 @@ button { cursor: pointer; border: none; background: none; }
   align-items: center;
   gap: 8px;
 }
-.set-head { grid-template-columns: 26px 1fr 1fr 44px; padding: 0 2px 2px; }
-.set-row  { grid-template-columns: 26px 1fr 1fr 44px; }
-.set-head.uni, .set-row.uni { grid-template-columns: 26px 1.15fr 1fr 1fr 44px; }
+.set-head { grid-template-columns: 42px 1fr 1fr 44px; padding: 0 2px 2px; }
+.set-row  { grid-template-columns: 42px 1fr 1fr 44px; }
+.set-head.uni, .set-row.uni { grid-template-columns: 42px 1.1fr 1fr 1fr 44px; }
 
 .set-head span {
   font-size: 10.5px;
@@ -335,11 +335,40 @@ button { cursor: pointer; border: none; background: none; }
 .set-head span:first-child { text-align: left; }
 
 .set-no {
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--text-faint);
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.15;
 }
+.set-no .n { font-size: 13px; font-weight: 650; color: var(--text-faint); }
+/* Wiederholungsziel dieses Satzes — die Zahl, die man im Studio sucht. */
+.set-no .goal {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.goal-row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.goal-no { font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.goal-row input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.goal-row input:focus { outline: none; border-color: var(--accent); }
 
 .set-row input {
   width: 100%;

@@ -24,30 +24,36 @@ Beim ersten Start legt **Meinen Plan anlegen** beide Tage fertig an:
 
 **Tag A**
 
-| # | Übung | Sätze |
-|---|---|---|
-| 1 | Bankdrückmaschine flach | 2 |
-| 2 | Butterflymaschine | 2 |
-| 3 | Bankdrückmaschine sitzend | 2 |
-| 4 | Schulterdrücken Maschine sitzend | 2 |
-| 5 | Seitheben Kabel *(einarmig, L/R getrennt)* | 2 |
-| 6 | Trizepsdrücken Kabel | 2 |
-| 7 | Dips | 3 |
+| # | Übung | Sätze | Ziel je Satz |
+|---|---|---|---|
+| 1 | Bankdrückmaschine flach | 2 | 3-6 · 12-15 |
+| 2 | Butterflymaschine | 2 | 3-6 · 12-15 |
+| 3 | Bankdrückmaschine sitzend | 2 | 3-6 · 12-15 |
+| 4 | Schulterdrücken Maschine sitzend | 2 | 3-6 · 12-15 |
+| 5 | Seitheben Kabel *(einarmig, L/R getrennt)* | 2 | 3-6 · 12-15 |
+| 6 | Trizepsdrücken Kabel | 2 | 3-6 · 12-15 |
+| 7 | Dips | 3 | kein Limit |
 
 **Tag B**
 
-| # | Übung | Sätze |
-|---|---|---|
-| 1 | Klimmzugmaschine *(Unterstützungsgewicht)* | 2 |
-| 2 | Kabelrudern eng | 2 |
-| 3 | Latzugmaschine sitzend *(einarmig, L/R getrennt)* | 2 |
-| 4 | Rudermaschine sitzend | 2 |
-| 5 | Butterfly Reverse | 2 |
-| 6 | Bizepscurls flach am Kabel | 2 |
+| # | Übung | Sätze | Ziel je Satz |
+|---|---|---|---|
+| 1 | Klimmzugmaschine *(Unterstützungsgewicht)* | 2 | 3-6 · 12-15 |
+| 2 | Kabelrudern eng | 2 | 3-6 · 12-15 |
+| 3 | Latzugmaschine sitzend *(einarmig, L/R getrennt)* | 2 | 3-6 · 12-15 |
+| 4 | Rudermaschine sitzend | 2 | 3-6 · 12-15 |
+| 5 | Butterfly Reverse | 2 | 3-6 · 12-15 |
+| 6 | Bizepscurls flach am Kabel | 2 | 3-6 · 12-15 |
 
-Wiederholungsziele stehen bewusst leer, weil keine vorgegeben waren — in der Übung
-steht dann einfach „2 Sätze". Nachtragen geht jederzeit über
-Plan → Übung → *Sätze / Wiederholungen ändern*.
+### Wiederholungsziele hängen am einzelnen Satz
+
+Bei zwei Sätzen ist der erste schwer (**3-6**) und der zweite leicht (**12-15**). Das
+Ziel steht deshalb nicht an der Übung, sondern klein neben der jeweiligen Satznummer —
+genau da, wo man im Studio hinschaut. Sätze ohne Ziel (Dips, und jeder von Hand
+angehängte Satz) zeigen einfach nur die Nummer: kein Limit, bis nicht mehr geht.
+
+Ändern geht über Plan → Übung → *Sätze / Wiederholungen ändern* — dort gibt es ein
+Feld je Satz, und die Satzzahl lässt sich gleich mit anpassen.
 
 ### Übungen mit Unterstützungsgewicht
 
