@@ -1,5 +1,5 @@
 import * as S from './store.js';
-import { esc, html, toast, sheet, closeSheet, confirmSheet, promptSheet, pickerSheet, actionSheet } from './ui.js';
+import { esc, html, toast, sheet, confirmSheet, promptSheet, pickerSheet, actionSheet } from './ui.js';
 
 let viewEl = document.getElementById('view');
 const topbarEl = document.getElementById('topbar');
@@ -25,8 +25,12 @@ function setLabel(set, unilateral) {
   return `${w} <span class="u">×</span> ${reps}`;
 }
 
-function setsSummary(sets, unilateral) {
-  return sets.map((s) => `<span class="chip">${setLabel(s, unilateral)}</span>`).join('');
+const fmtInt = (n) => Math.round(n).toLocaleString('de-DE');
+
+function setsSummary(sets, unilateral, best = null) {
+  return sets
+    .map((s) => `<span class="chip${best && s.id === best.id ? ' best' : ''}">${setLabel(s, unilateral)}</span>`)
+    .join('');
 }
 
 function go(tab, sub = null, id = null) {
@@ -69,7 +73,7 @@ function render() {
 
 function setTop({ title, sub, left, right }) {
   topbarEl.innerHTML = html`
-    ${left ? `<button class="topbar-btn ghost" data-top="left" type="button">${esc(left.label)}</button>` : ''}
+    ${left ? `<button class="topbar-btn ${left.kind || 'ghost'}" data-top="left" type="button">${esc(left.label)}</button>` : ''}
     <h1>${esc(title)}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</h1>
     ${right ? `<button class="topbar-btn ${right.kind || ''}" data-top="right" type="button">${esc(right.label)}</button>` : ''}
   `;
@@ -83,7 +87,7 @@ function viewTraining() {
   const session = S.activeSession();
   if (session) return viewSession(session);
 
-  setTop({ title: 'Training starten' });
+  setTop({ title: 'Training' });
 
   if (!S.db.days.length) {
     viewEl.innerHTML = html`
@@ -104,30 +108,55 @@ function viewTraining() {
   }
 
   const done = S.finishedSessions();
+  const next = S.suggestNextDay();
+  const last = done[0] || null;
+  const others = S.db.days.filter((d) => d.id !== (next && next.id));
+
   viewEl.innerHTML = html`
-    <div class="section-title">Welcher Tag?</div>
-    <div class="list">
-      ${S.db.days
-        .map((day) => {
-          const last = done.find((s) => s.dayId === day.id);
-          const names = day.slots.map((s) => S.exerciseName(s.exerciseId));
-          return html`
-            <button class="row" data-start="${day.id}" type="button">
-              <div class="row-main">
-                <div class="row-title">${esc(day.name)}</div>
-                <div class="row-sub">
-                  ${day.slots.length ? esc(names.join(' · ')) : 'Noch keine Übungen'}
-                </div>
-                <div class="row-sub" style="margin-top:4px">
-                  ${last ? `Zuletzt ${esc(S.relativeDate(last.date))}` : 'Noch nie trainiert'}
-                </div>
+    ${
+      next
+        ? html`
+            <section class="next-card">
+              <div class="next-k">Dran ist</div>
+              <h2 class="next-name">${esc(next.name)}</h2>
+              <div class="next-ex">
+                ${next.slots.length ? esc(next.slots.map((s) => S.exerciseName(s.exerciseId)).join(' · ')) : 'Noch keine Übungen in diesem Tag'}
               </div>
-              <span class="row-chev">›</span>
-            </button>
-          `;
-        })
-        .join('')}
-    </div>
+              <button class="btn primary" data-start="${next.id}" type="button">Training starten</button>
+              <div class="next-hint">
+                ${
+                  last
+                    ? `Zuletzt: ${esc(last.dayName)} · ${esc(S.relativeDate(last.date))}`
+                    : 'Noch kein Training protokolliert'
+                }
+              </div>
+            </section>
+          `
+        : ''
+    }
+    ${
+      others.length
+        ? html`
+            <div class="section-title">Doch ein anderer Tag</div>
+            <div class="list">
+              ${others
+                .map((day) => {
+                  const l = S.lastSessionForDay(day.id);
+                  return html`
+                    <button class="row" data-start="${day.id}" type="button">
+                      <div class="row-main">
+                        <div class="row-title">${esc(day.name)}</div>
+                        <div class="row-sub">${l ? `Zuletzt ${esc(S.relativeDate(l.date))}` : 'Noch nie trainiert'}</div>
+                      </div>
+                      <span class="row-chev">›</span>
+                    </button>
+                  `;
+                })
+                .join('')}
+            </div>
+          `
+        : ''
+    }
     ${done.length ? `<div class="section-title">Letzte Trainings</div><div class="list">${recentRows(done.slice(0, 5))}</div>` : ''}
   `;
 
@@ -151,11 +180,14 @@ function recentRows(sessions) {
   return sessions
     .map((s) => {
       const sets = s.entries.reduce((n, e) => n + e.sets.length, 0);
+      const min = S.sessionDuration(s);
+      const vol = Math.round(S.sessionVolume(s));
       return html`
         <button class="row" data-session="${s.id}" type="button">
           <div class="row-main">
             <div class="row-title">${esc(s.dayName)}</div>
-            <div class="row-sub">${esc(S.formatDate(s.date))} · ${esc(S.relativeDate(s.date))} · ${s.entries.length} Übungen, ${sets} Sätze</div>
+            <div class="row-sub">${esc(S.formatDate(s.date))} · ${esc(S.relativeDate(s.date))}</div>
+            <div class="row-sub">${s.entries.length} Übungen · ${sets} Sätze · ${vol} kg${min ? ` · ${min} Min` : ''}</div>
           </div>
           <span class="row-chev">›</span>
         </button>
@@ -170,7 +202,7 @@ function viewSession(session) {
   setTop({
     title: session.dayName,
     sub: `${S.formatDate(session.date)} · ${S.countDoneSets(session)} Sätze erledigt`,
-    left: { label: '⋯', run: () => sessionMenu(session) },
+    left: { label: '⋯', kind: 'round', run: () => sessionMenu(session) },
     right: { label: 'Beenden', kind: 'primary', run: () => finishFlow(session) },
   });
 
@@ -185,56 +217,48 @@ function viewSession(session) {
   bindSessionEvents(session);
 }
 
+/**
+ * Eine Übung im laufenden Training. Bewusst reduziert: Name, Ziel, Sätze.
+ * Die Werte vom letzten Mal stehen blass als Vorschlag in den Feldern und
+ * werden beim Abhaken übernommen — kein zusätzlicher Textblock nötig.
+ */
 function entryCard(session, entry) {
   const ex = S.exerciseById(entry.exerciseId);
   const uni = !!entry.unilateral;
   const substituted = entry.plannedExerciseId && entry.plannedExerciseId !== entry.exerciseId;
-  const last = S.lastPerformance(entry.exerciseId, session.id);
   const target = entry.targetReps ? `${entry.targetSets}×${entry.targetReps}` : '';
+  const complete = entry.sets.length > 0 && entry.sets.every((s) => s.done);
 
   return html`
-    <section class="card ex-card" data-entry-card="${entry.id}">
+    <section class="card ex-card ${complete ? 'complete' : ''}" data-entry-card="${entry.id}">
       <div class="card-head">
-        <div class="card-title">
-          ${esc(ex ? ex.name : '?')}
-          ${substituted ? '<span class="badge-sub">Ersatz heute</span>' : ''}
-          <div class="card-sub">
-            ${target ? `Ziel ${esc(target)}` : 'Freies Ziel'}${uni ? ' · einseitig (L/R)' : ''}
-            ${substituted ? ` · statt ${esc(S.exerciseName(entry.plannedExerciseId))}` : ''}
-          </div>
-        </div>
+        <div class="card-title">${esc(ex ? ex.name : '?')}</div>
+        ${target ? `<span class="target">${esc(target)}</span>` : ''}
         <button class="icon-btn" data-entry-menu="${entry.id}" type="button" aria-label="Optionen">⋯</button>
       </div>
-      <div class="last-line">
-        ${
-          last
-            ? `Zuletzt (${esc(S.relativeDate(last.date))}): <b>${last.sets.map((s) => setLabel(s, last.unilateral)).join('</b>, <b>')}</b>`
-            : 'Erstes Mal — noch kein Verlauf für diese Übung.'
-        }
-      </div>
+      ${substituted ? `<div class="sub-note">Ersatz für ${esc(S.exerciseName(entry.plannedExerciseId))}</div>` : ''}
       <div class="card-body">
         <div class="sets">
-          <div class="set-head ${uni ? 'uni' : ''}">
-            <span>Satz</span><span>Gewicht</span>${uni ? '<span>Wdh L</span><span>Wdh R</span>' : '<span>Wdh</span>'}<span></span>
-          </div>
+          ${uni ? '<div class="set-head uni"><span></span><span>Gewicht</span><span>Wdh L</span><span>Wdh R</span><span></span></div>' : ''}
           ${entry.sets.map((set, i) => setRow(entry, set, i, uni)).join('')}
         </div>
-        <div class="set-actions">
-          <button class="btn" data-add-set="${entry.id}" type="button">＋ Satz</button>
-          ${entry.sets.length > 1 ? `<button class="btn" data-del-set="${entry.id}" type="button">− Satz</button>` : ''}
-        </div>
+        <button class="add-set" data-add-set="${entry.id}" type="button">＋ Satz</button>
       </div>
     </section>
   `;
 }
 
 function setRow(entry, set, i, uni) {
-  const inp = (field, value, ph) => html`
-    <input type="text" inputmode="${field === 'weight' ? 'decimal' : 'numeric'}"
-           data-set-field="${field}" data-entry="${entry.id}" data-set="${set.id}"
-           value="${value == null ? '' : esc(fmtW(value))}" placeholder="${ph}"
-           autocomplete="off" enterkeyhint="next">
-  `;
+  const sug = set.suggest || {};
+  const inp = (field, value, fallback) => {
+    const hint = sug[field] != null ? fmtW(sug[field]) : fallback;
+    return html`
+      <input type="text" inputmode="${field === 'weight' ? 'decimal' : 'numeric'}"
+             data-set-field="${field}" data-entry="${entry.id}" data-set="${set.id}"
+             value="${value == null ? '' : esc(fmtW(value))}" placeholder="${esc(hint)}"
+             autocomplete="off" enterkeyhint="next" aria-label="${field === 'weight' ? 'Gewicht' : 'Wiederholungen'}">
+    `;
+  };
   return html`
     <div class="set-row ${uni ? 'uni' : ''} ${set.done ? 'done' : ''}" data-set-row="${set.id}">
       <div class="set-no">${i + 1}</div>
@@ -261,10 +285,16 @@ function bindSessionEvents(session) {
     if (toggle) {
       const entry = S.entryById(session, toggle.dataset.entry);
       const set = entry.sets.find((s) => s.id === toggle.dataset.toggle);
-      const filled = set.weight != null || set.reps != null || set.repsL != null || set.repsR != null;
-      if (!set.done && !filled) return toast('Erst Gewicht/Wiederholungen eintragen');
-      S.updateSet(session, entry.id, set.id, { done: !set.done });
-      toggle.closest('.set-row').classList.toggle('done', set.done);
+      if (!set.done && !S.setHasValue(set, entry.unilateral)) {
+        return toast('Erst Gewicht/Wiederholungen eintragen');
+      }
+      S.setDone(session, entry.id, set.id, !set.done);
+      // Beim Abhaken können Vorschläge in die Felder gewandert sein -> Zeile neu.
+      const row = toggle.closest('.set-row');
+      const index = entry.sets.findIndex((s) => s.id === set.id);
+      row.outerHTML = setRow(entry, set, index, entry.unilateral);
+      const card = viewEl.querySelector(`[data-entry-card="${entry.id}"]`);
+      if (card) card.classList.toggle('complete', entry.sets.every((s) => s.done));
       updateSessionSubtitle(session);
       return;
     }
@@ -273,27 +303,6 @@ function bindSessionEvents(session) {
     if (addSet) {
       S.addSet(session, addSet.dataset.addSet);
       return refreshEntry(session, addSet.dataset.addSet);
-    }
-
-    const delSet = e.target.closest('[data-del-set]');
-    if (delSet) {
-      const entry = S.entryById(session, delSet.dataset.delSet);
-      const last = entry.sets[entry.sets.length - 1];
-      if (last.done) {
-        return confirmSheet({
-          title: 'Satz löschen?',
-          text: 'Der letzte Satz ist schon abgehakt. Wirklich entfernen?',
-          confirmLabel: 'Löschen',
-          danger: true,
-          onConfirm: () => {
-            S.removeSet(session, entry.id, last.id);
-            refreshEntry(session, entry.id);
-            updateSessionSubtitle(session);
-          },
-        });
-      }
-      S.removeSet(session, entry.id, last.id);
-      return refreshEntry(session, entry.id);
     }
 
     const menu = e.target.closest('[data-entry-menu]');
@@ -339,13 +348,25 @@ function entryMenu(session, entryId) {
     });
   }
 
+  if (entry.sets.length > 1) {
+    actions.push({
+      label: 'Letzten Satz entfernen',
+      run: () => {
+        const last = entry.sets[entry.sets.length - 1];
+        S.removeSet(session, entry.id, last.id);
+        refreshEntry(session, entry.id);
+        updateSessionSubtitle(session);
+      },
+    });
+  }
+
   actions.push(
     {
       label: ex && ex.unilateral ? 'Einseitig (L/R) ausschalten' : 'Als einseitig markieren (L/R)',
       sub: 'Gilt dauerhaft für diese Übung.',
       run: () => {
-        S.updateExercise(entry.exerciseId, { unilateral: !(ex && ex.unilateral) });
-        entry.unilateral = !!S.exerciseById(entry.exerciseId).unilateral;
+        const updated = S.updateExercise(entry.exerciseId, { unilateral: !(ex && ex.unilateral) });
+        entry.unilateral = !!(updated && updated.unilateral);
         S.save();
         render();
       },
@@ -388,9 +409,13 @@ function pickSubstitute(session, entry) {
     emptyText: 'Keine weiteren Übungen angelegt.',
     createLabel: 'Neue Übung anlegen',
     onPick: (id) => {
-      S.substituteEntry(session, entry.id, id);
+      const result = S.substituteEntry(session, entry.id, id);
       render();
-      toast('Nur für heute getauscht');
+      toast(
+        result && result.id !== entry.id
+          ? 'Ergänzt — die abgehakten Sätze bleiben bei der alten Übung'
+          : 'Nur für heute getauscht'
+      );
     },
     onCreate: (name) =>
       newExerciseSheet(name, (ex) => {
@@ -1016,46 +1041,125 @@ function viewVerlauf() {
   });
 }
 
+/**
+ * Verlaufsgraph des schwersten Satzes über die Zeit. Eine Serie, deshalb keine
+ * Legende; beschriftet werden nur Bestwert und aktueller Stand. Die vollständigen
+ * Zahlen stehen direkt darunter in der Liste.
+ */
+function sparkline(points) {
+  const W = 320;
+  const H = 76;
+  const PX = 14;
+  const PY = 18;
+  const n = points.length;
+  const vals = points.map((p) => p.value);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min || 1;
+
+  const px = (i) => (n === 1 ? W / 2 : PX + (i * (W - 2 * PX)) / (n - 1));
+  const py = (v) => (max === min ? H / 2 : H - PY - ((v - min) / span) * (H - 2 * PY));
+  const pts = points.map((p, i) => [px(i), py(p.value)]);
+  const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = `${d} L${pts[n - 1][0].toFixed(1)},${H} L${pts[0][0].toFixed(1)},${H} Z`;
+
+  const maxIdx = vals.lastIndexOf(max);
+  const lastIdx = n - 1;
+  const clampX = (x) => Math.min(Math.max(x, 22), W - 22);
+  const dots = pts
+    .map(([x, y], i) => {
+      const key = i === maxIdx || i === lastIdx;
+      if (!key && n > 14) return '';
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${key ? 4 : 2.5}"
+                fill="${key ? 'var(--accent)' : 'var(--bg-elev)'}" stroke="var(--accent)" stroke-width="2"/>`;
+    })
+    .join('');
+
+  const label = (i, dy, text) =>
+    `<text x="${clampX(pts[i][0]).toFixed(1)}" y="${(pts[i][1] + dy).toFixed(1)}"
+       text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-dim)">${esc(text)}</text>`;
+
+  return html`
+    <svg class="spark" viewBox="0 0 ${W} ${H}" role="img"
+         aria-label="Verlauf des schwersten Satzes: ${esc(points.map((p) => `${S.formatDate(p.date)} ${fmtW(p.value)} kg`).join(', '))}">
+      <path d="${area}" fill="var(--accent-soft)"/>
+      <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}
+      ${maxIdx !== lastIdx ? label(maxIdx, -10, `${fmtW(max)} kg`) : ''}
+      ${label(lastIdx, pts[lastIdx][1] < 24 ? 18 : -10, `${fmtW(vals[lastIdx])} kg`)}
+    </svg>
+  `;
+}
+
+function deltaTag(delta) {
+  if (!delta) return '';
+  const up = delta.value > 0;
+  const value = `${up ? '+' : '−'}${fmtW(Math.abs(delta.value))} ${delta.kind}`;
+  return `<span class="delta ${up ? 'up' : 'down'}">${esc(value)}</span>`;
+}
+
 function viewExerciseHistory() {
   const ex = S.exerciseById(route.id);
   if (!ex) return back();
-  const history = S.exerciseHistory(ex.id);
+  const prog = S.exerciseProgress(ex.id);
 
   setTop({
     title: ex.name,
-    sub: `${history.length} Einträge${ex.unilateral ? ' · einseitig (L/R)' : ''}`,
+    sub: `${prog.length} Einträge${ex.unilateral ? ' · einseitig (L/R)' : ''}`,
     left: { label: '‹ Zurück', run: back },
   });
 
-  if (!history.length) {
+  if (!prog.length) {
     viewEl.innerHTML = '<div class="empty"><p>Für diese Übung ist noch nichts protokolliert.</p></div>';
     return;
   }
 
-  const allSets = history.flatMap((h) => h.sets);
-  const best = S.bestSet(allSets, ex.unilateral);
-  const heaviest = Math.max(...allSets.map((s) => Number(s.weight) || 0));
-  const lastVolume = history[0].sets.reduce((n, s) => n + S.setVolume(s, ex.unilateral), 0);
+  const allSets = prog.flatMap((h) => h.sets);
+  const record = S.bestSet(allSets, ex.unilateral);
+  const latest = prog[0];
+  const chrono = [...prog].reverse();
+  const totalSets = allSets.length;
 
   viewEl.innerHTML = html`
     <div class="stat-grid">
-      <div class="stat"><div class="k">Bester Satz</div><div class="v">${best ? setLabel(best, ex.unilateral) : '–'}</div></div>
-      <div class="stat"><div class="k">Höchstes Gewicht</div><div class="v">${heaviest ? fmtW(heaviest) + ' kg' : '–'}</div></div>
-      <div class="stat"><div class="k">Trainings</div><div class="v">${history.length}</div></div>
-      <div class="stat"><div class="k">Volumen letztes Mal</div><div class="v">${Math.round(lastVolume)} kg</div></div>
+      <div class="stat"><div class="k">Bestwert</div><div class="v">${record ? setLabel(record, ex.unilateral) : '–'}</div></div>
+      <div class="stat"><div class="k">Letztes Mal</div><div class="v">${latest.best ? setLabel(latest.best, ex.unilateral) : '–'}</div></div>
+      <div class="stat"><div class="k">Einträge · Sätze</div><div class="v">${prog.length} · ${totalSets}</div></div>
+      <div class="stat"><div class="k">Volumen zuletzt</div><div class="v">${fmtInt(latest.volume)} kg</div></div>
     </div>
+
+    ${
+      chrono.length > 1
+        ? html`
+            <div class="section-title">Schwerster Satz im Verlauf</div>
+            <div class="chart-card">
+              ${sparkline(chrono.map((h) => ({ date: h.date, value: h.top })))}
+              <div class="chart-foot">
+                <span>${esc(S.formatDate(chrono[0].date))}</span>
+                <span>${esc(S.formatDate(chrono[chrono.length - 1].date))}</span>
+              </div>
+            </div>
+          `
+        : ''
+    }
+
     <div class="section-title">Alle Einträge</div>
     <div class="list">
-      ${history
+      ${prog
         .map(
           (h) => html`
             <div class="hist-entry">
               <div class="hist-date">
                 <span>${esc(S.formatDate(h.date))}</span>
                 <span class="muted tiny">${esc(h.dayName)} · ${esc(S.relativeDate(h.date))}</span>
+                ${h.isRecord ? '<span class="badge-pr">Bestwert</span>' : ''}
                 ${h.wasSubstitute ? '<span class="badge-sub">als Ersatz</span>' : ''}
               </div>
-              <div class="hist-sets">${setsSummary(h.sets, ex.unilateral)}</div>
+              <div class="hist-sets">${setsSummary(h.sets, ex.unilateral, h.best)}</div>
+              <div class="hist-meta">
+                <span>${h.sets.length} Sätze · ${fmtInt(h.volume)} kg Volumen</span>
+                ${deltaTag(h.delta)}
+              </div>
             </div>
           `
         )
@@ -1075,35 +1179,45 @@ function viewSessionDetail() {
     right: { label: '⋯', run: () => pastSessionMenu(session) },
   });
 
-  const totalVolume = session.entries.reduce(
-    (n, e) => n + e.sets.reduce((m, s) => m + S.setVolume(s, e.unilateral), 0),
-    0
-  );
+  const minutes = S.sessionDuration(session);
 
   viewEl.innerHTML = html`
     <div class="stat-grid">
       <div class="stat"><div class="k">Übungen</div><div class="v">${session.entries.length}</div></div>
       <div class="stat"><div class="k">Sätze</div><div class="v">${session.entries.reduce((n, e) => n + e.sets.length, 0)}</div></div>
-      <div class="stat"><div class="k">Volumen</div><div class="v">${Math.round(totalVolume)} kg</div></div>
-      <div class="stat"><div class="k">Datum</div><div class="v">${esc(S.formatDate(session.date))}</div></div>
+      <div class="stat"><div class="k">Volumen</div><div class="v">${fmtInt(S.sessionVolume(session))} kg</div></div>
+      <div class="stat"><div class="k">Dauer</div><div class="v">${minutes ? `${minutes} Min` : '–'}</div></div>
     </div>
     <div class="list">
       ${session.entries
         .map((entry) => {
           const wasSub = entry.plannedExerciseId && entry.plannedExerciseId !== entry.exerciseId;
+          const info = S.exerciseProgress(entry.exerciseId).find((h) => h.entryId === entry.id);
+          const best = info ? info.best : S.bestSet(entry.sets, entry.unilateral);
           return html`
-            <div class="hist-entry">
+            <button class="hist-entry tappable" data-ex="${entry.exerciseId}" type="button">
               <div class="hist-date">
                 <span>${esc(S.exerciseName(entry.exerciseId))}</span>
+                ${info && info.isRecord ? '<span class="badge-pr">Bestwert</span>' : ''}
                 ${wasSub ? `<span class="badge-sub">Ersatz für ${esc(S.exerciseName(entry.plannedExerciseId))}</span>` : ''}
               </div>
-              <div class="hist-sets">${setsSummary(entry.sets, entry.unilateral)}</div>
-            </div>
+              <div class="hist-sets">${setsSummary(entry.sets, entry.unilateral, best)}</div>
+              <div class="hist-meta">
+                <span>${entry.sets.length} Sätze · ${fmtInt(S.entryVolume(entry))} kg Volumen</span>
+                ${deltaTag(info && info.delta)}
+              </div>
+            </button>
           `;
         })
         .join('')}
     </div>
+    <p class="tiny muted" style="text-align:center;margin-top:14px">Übung antippen für ihren kompletten Verlauf</p>
   `;
+
+  viewEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-ex]');
+    if (btn) go(route.tab, 'exercise', btn.dataset.ex);
+  });
 }
 
 function pastSessionMenu(session) {

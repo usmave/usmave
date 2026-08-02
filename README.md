@@ -28,16 +28,38 @@ Die App trennt **Übung** (Name + Verlauf) und **Platz im Plan**. Daraus ergeben
 | Neuer Plan, Übung fliegt raus, neue kommt rein | Plan → Übung antippen → **Durch andere Übung ersetzen** | Neue Übung startet eigenen Verlauf; die alte wandert ins Archiv und behält alles. Kommt sie in ein paar Monaten zurück, sind die alten Gewichte sofort wieder da |
 | Gerät besetzt, heute eine Alternative | Im laufenden Training → **⋯ → Andere Übung — nur heute** | Wird unter der Ersatzübung protokolliert (mit Vermerk „als Ersatz"), der Plan bleibt unverändert — nächstes Mal steht wieder das Original da |
 
+Wenn bei der ursprünglichen Übung schon ein Satz abgehakt war, bevor du wechselst,
+wandert dieser Satz **nicht** mit: er bleibt bei der Übung, bei der du ihn gemacht hast,
+und die Alternative kommt als eigener Eintrag darunter. Sonst würde der Verlauf
+Gewichte der einen Übung der anderen zuschreiben.
+
 ## Bedienung im Studio
 
-- **Training** → Tag wählen → los. Gewicht und Wiederholungen sind bereits mit den
-  Werten vom letzten Mal vorbelegt; nur ändern, was sich geändert hat.
-- Nach jedem Satz auf **✓** tippen. Nur abgehakte Sätze landen im Verlauf,
-  nicht abgehakte werden beim Beenden verworfen.
-- **＋ Satz** / **− Satz**, wenn es mal mehr oder weniger werden.
+Die Trainingsansicht ist bewusst karg gehalten — Übungsname, Ziel, Satzzeilen, sonst nichts.
+
+- **Der nächste Tag wird vorgeschlagen.** Die App merkt sich, welcher Tag zuletzt
+  protokolliert wurde, und schlägt beim Öffnen den nächsten in der Reihenfolge vor:
+  nach Tag B kommt Tag A. Ein anderer Tag ist trotzdem immer einen Tipp entfernt.
+- **Die Werte vom letzten Mal stehen blass in den Feldern.** Sie sind nicht
+  eingetragen, sondern ein Vorschlag: Tippst du auf **✓**, werden sie übernommen.
+  Hat sich etwas geändert, tippst du vorher die neue Zahl drüber. So sieht man auf
+  einen Blick, was heute schon wirklich steht.
+- Nur abgehakte Sätze landen im Verlauf; nicht abgehakte werden beim Beenden verworfen.
+- **＋ Satz** hängt eine Zeile an, *Letzten Satz entfernen* im ⋯-Menü nimmt eine weg.
 - Einseitige Übungen (Kurzhantel, einarmiges Rudern …) haben getrennte Felder für
   **Wdh L** und **Wdh R** — dafür die Übung als *einseitig* markieren
   (⋯-Menü an der Übung oder Plan → Übung → *Als einseitig markieren*).
+
+## Was der Verlauf zeigt
+
+**Pro Übung:** Bestwert, letzter Stand, Anzahl Einträge und Sätze, Volumen; darunter ein
+Graph des schwersten Satzes über die Zeit und jeder einzelne Eintrag mit Datum,
+Trainingstag, allen Sätzen (bester hervorgehoben), Volumen und der Veränderung zum
+Mal davor (z. B. `+2,5 kg`). Bestwerte sind markiert.
+
+**Pro Training:** Übungen, Sätze, Gesamtvolumen und Dauer, dann jede Übung mit ihren
+Sätzen, ihrem Volumen und ihrer Veränderung. Ein Tipp auf eine Übung springt in deren
+kompletten Verlauf.
 
 ## Daten & Backup
 

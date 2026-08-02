@@ -252,7 +252,36 @@ export function sessionById(id) {
 export function finishedSessions() {
   return db.sessions
     .filter((s) => s.finishedAt)
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt.localeCompare(a.createdAt)));
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : String(b.createdAt || '').localeCompare(String(a.createdAt || ''))));
+}
+
+/** Letztes abgeschlossenes Training eines Tages. */
+export function lastSessionForDay(dayId) {
+  return finishedSessions().find((s) => s.dayId === dayId) || null;
+}
+
+/**
+ * Welcher Tag ist dran? Bei A/B-Wechsel also: nach Tag B kommt Tag A.
+ * Nie trainierte Tage haben Vorrang, danach der Reihe nach im Plan.
+ */
+export function suggestNextDay() {
+  if (!db.days.length) return null;
+  const done = finishedSessions();
+  if (!done.length) return db.days[0];
+
+  const untrained = db.days.filter((d) => !done.some((s) => s.dayId === d.id));
+  if (untrained.length) return untrained[0];
+
+  const idx = db.days.findIndex((d) => d.id === done[0].dayId);
+  if (idx === -1) {
+    // Der zuletzt trainierte Tag steht nicht mehr im Plan: den ältesten nehmen.
+    return [...db.days].sort((a, b) => {
+      const la = lastSessionForDay(a.id);
+      const lb = lastSessionForDay(b.id);
+      return String(la ? la.date : '').localeCompare(String(lb ? lb.date : ''));
+    })[0];
+  }
+  return db.days[(idx + 1) % db.days.length];
 }
 
 export function startSession(dayId) {
@@ -275,7 +304,9 @@ export function startSession(dayId) {
 function makeEntry(slot) {
   const ex = exerciseById(slot.exerciseId);
   const last = lastPerformance(slot.exerciseId);
-  const count = last ? Math.max(last.sets.length, 1) : slot.targetSets || 3;
+  // Lieber eine Zeile zu viel als eine zu wenig — leere Zeilen werden beim
+  // Beenden ohnehin verworfen, eine fehlende müsste man nachtippen.
+  const count = Math.max(last ? last.sets.length : 0, slot.targetSets || 3);
   return {
     id: uid(),
     slotId: slot.id,
@@ -284,20 +315,69 @@ function makeEntry(slot) {
     targetSets: slot.targetSets,
     targetReps: slot.targetReps,
     unilateral: !!(ex && ex.unilateral),
-    sets: Array.from({ length: count }, (_, i) => blankSet(last && last.sets[i], ex)),
+    sets: Array.from({ length: count }, (_, i) => blankSet(pickSet(last, i), ex)),
   };
 }
 
+/** Satz i vom letzten Mal — hat man heute mehr Sätze, gilt der letzte weiter. */
+function pickSet(last, i) {
+  if (!last || !last.sets.length) return null;
+  return last.sets[Math.min(i, last.sets.length - 1)];
+}
+
+/**
+ * Neuer, leerer Satz. Die Werte vom letzten Mal landen nicht im Feld, sondern in
+ * `suggest` — sie stehen blass als Vorschlag drin und werden beim Abhaken
+ * übernommen. So bleibt die Trainingsansicht ruhig und man sieht sofort,
+ * was heute wirklich schon eingetragen ist.
+ */
 function blankSet(template, ex) {
   const uni = !!(ex && ex.unilateral);
+  const src = template ? (template.done ? template : template.suggest) : null;
   return {
     id: uid(),
-    weight: template ? template.weight : null,
-    reps: uni ? null : template ? template.reps : null,
-    repsL: uni ? (template ? template.repsL ?? template.reps : null) : null,
-    repsR: uni ? (template ? template.repsR ?? template.reps : null) : null,
+    weight: null,
+    reps: null,
+    repsL: null,
+    repsR: null,
     done: false,
+    suggest: src
+      ? {
+          weight: src.weight ?? null,
+          reps: uni ? null : src.reps ?? null,
+          repsL: uni ? src.repsL ?? src.reps ?? null : null,
+          repsR: uni ? src.repsR ?? src.reps ?? null : null,
+        }
+      : null,
   };
+}
+
+/** Ist für diesen Satz etwas da — eingetippt oder als Vorschlag? */
+export function setHasValue(set, unilateral) {
+  const has = (a, b) => a != null || (set.suggest && set.suggest[b] != null);
+  return unilateral
+    ? has(set.repsL, 'repsL') || has(set.repsR, 'repsR') || has(set.weight, 'weight')
+    : has(set.reps, 'reps') || has(set.weight, 'weight');
+}
+
+/** Abhaken: leere Felder werden mit dem Vorschlag vom letzten Mal gefüllt. */
+export function setDone(session, entryId, setId, done) {
+  const entry = entryById(session, entryId);
+  const set = entry && entry.sets.find((s) => s.id === setId);
+  if (!set) return null;
+  if (done && set.suggest) {
+    const s = set.suggest;
+    if (set.weight == null) set.weight = s.weight;
+    if (entry.unilateral) {
+      if (set.repsL == null) set.repsL = s.repsL;
+      if (set.repsR == null) set.repsR = s.repsR;
+    } else if (set.reps == null) {
+      set.reps = s.reps;
+    }
+  }
+  set.done = done;
+  save();
+  return set;
 }
 
 export function entryById(session, entryId) {
@@ -329,20 +409,44 @@ export function updateSet(session, entryId, setId, patch) {
   return set;
 }
 
-/** Tauscht die Übung nur für dieses eine Training aus. Der Plan bleibt gleich. */
+/**
+ * Tauscht die Übung nur für dieses eine Training aus. Der Plan bleibt gleich.
+ *
+ * Sind schon Sätze abgehakt, werden sie NICHT mitgenommen — sie gehören zur
+ * ursprünglichen Übung. Die Alternative kommt dann als eigener Eintrag direkt
+ * dahinter, damit im Verlauf jede Übung nur ihre eigenen Sätze bekommt.
+ */
 export function substituteEntry(session, entryId, exerciseId) {
   const entry = entryById(session, entryId);
-  if (!entry) return;
+  if (!entry) return null;
   const ex = exerciseById(exerciseId);
+  const last = lastPerformance(exerciseId, session.id);
+  const doneSets = entry.sets.filter((s) => s.done);
+
+  if (doneSets.length) {
+    entry.sets = doneSets;
+    const rest = Math.max(1, (entry.targetSets || 3) - doneSets.length);
+    const fresh = {
+      id: uid(),
+      slotId: entry.slotId,
+      plannedExerciseId: entry.plannedExerciseId,
+      exerciseId,
+      targetSets: rest,
+      targetReps: entry.targetReps,
+      unilateral: !!(ex && ex.unilateral),
+      sets: Array.from({ length: rest }, (_, i) => blankSet(pickSet(last, i), ex)),
+    };
+    session.entries.splice(session.entries.indexOf(entry) + 1, 0, fresh);
+    save();
+    return fresh;
+  }
+
   entry.exerciseId = exerciseId;
   entry.unilateral = !!(ex && ex.unilateral);
-  const untouched = entry.sets.every((s) => !s.done);
-  if (untouched) {
-    const last = lastPerformance(exerciseId, session.id);
-    const count = last ? Math.max(last.sets.length, 1) : entry.targetSets || 3;
-    entry.sets = Array.from({ length: count }, (_, i) => blankSet(last && last.sets[i], ex));
-  }
+  const count = Math.max(last ? last.sets.length : 0, entry.targetSets || 3);
+  entry.sets = Array.from({ length: count }, (_, i) => blankSet(pickSet(last, i), ex));
   save();
+  return entry;
 }
 
 export function addEntry(session, exerciseId) {
@@ -357,7 +461,7 @@ export function addEntry(session, exerciseId) {
     targetSets: count,
     targetReps: '',
     unilateral: !!(ex && ex.unilateral),
-    sets: Array.from({ length: count }, (_, i) => blankSet(last && last.sets[i], ex)),
+    sets: Array.from({ length: count }, (_, i) => blankSet(pickSet(last, i), ex)),
   };
   session.entries.push(entry);
   save();
@@ -371,11 +475,36 @@ export function removeEntry(session, entryId) {
 
 /** Beendet das Training und verwirft alle nicht abgehakten Sätze. */
 export function finishSession(session) {
-  for (const entry of session.entries) entry.sets = entry.sets.filter((s) => s.done);
+  for (const entry of session.entries) {
+    entry.sets = entry.sets.filter((s) => s.done);
+    for (const set of entry.sets) delete set.suggest; // Vorschläge sind nur zur Laufzeit interessant
+  }
   session.entries = session.entries.filter((e) => e.sets.length > 0);
   session.finishedAt = new Date().toISOString();
   writeNow();
   return session;
+}
+
+/** Dauer in Minuten — nur plausible Werte (nicht: Training tagelang offen gelassen). */
+export function sessionDuration(session) {
+  if (!session.finishedAt || !session.createdAt) return null;
+  const min = Math.round((new Date(session.finishedAt) - new Date(session.createdAt)) / 60000);
+  return min > 0 && min <= 300 ? min : null;
+}
+
+export function sessionVolume(session) {
+  return session.entries.reduce(
+    (n, e) => n + e.sets.reduce((m, s) => m + setVolume(s, e.unilateral), 0),
+    0
+  );
+}
+
+export function entryVolume(entry) {
+  return entry.sets.reduce((n, s) => n + setVolume(s, entry.unilateral), 0);
+}
+
+export function topWeight(sets) {
+  return sets.reduce((max, s) => Math.max(max, Number(s.weight) || 0), 0);
 }
 
 export function discardSession(sessionId) {
@@ -412,15 +541,52 @@ export function exerciseHistory(exerciseId) {
       if (!sets.length) continue;
       out.push({
         sessionId: session.id,
+        entryId: entry.id,
         date: session.date,
+        createdAt: session.createdAt || '',
         dayName: session.dayName,
+        plannedExerciseId: entry.plannedExerciseId,
         wasSubstitute: !!(entry.plannedExerciseId && entry.plannedExerciseId !== entry.exerciseId),
         unilateral: !!entry.unilateral,
         sets,
       });
     }
   }
-  return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return out.sort((a, b) =>
+    a.date < b.date ? 1 : a.date > b.date ? -1 : String(b.createdAt).localeCompare(String(a.createdAt))
+  );
+}
+
+/**
+ * Verlauf einer Übung, angereichert um Volumen, Bestwert-Markierung und
+ * Veränderung gegenüber dem Mal davor. Neueste zuerst.
+ */
+export function exerciseProgress(exerciseId) {
+  const hits = exerciseHistory(exerciseId);
+  const chrono = [...hits].reverse();
+  let record = 0;
+
+  const enriched = chrono.map((h, i) => {
+    const top = topWeight(h.sets);
+    const best = bestSet(h.sets, h.unilateral);
+    const prev = i > 0 ? chrono[i - 1] : null;
+    const prevBest = prev ? bestSet(prev.sets, prev.unilateral) : null;
+    const isRecord = top > 0 && top > record;
+    record = Math.max(record, top);
+
+    let delta = null;
+    if (best && prevBest) {
+      const dw = (Number(best.weight) || 0) - (Number(prevBest.weight) || 0);
+      const reps = (s) => (h.unilateral ? Math.max(Number(s.repsL) || 0, Number(s.repsR) || 0) : Number(s.reps) || 0);
+      const dr = reps(best) - reps(prevBest);
+      if (dw) delta = { kind: 'kg', value: dw };
+      else if (dr) delta = { kind: 'Wdh', value: dr };
+    }
+
+    return { ...h, top, best, volume: h.sets.reduce((n, s) => n + setVolume(s, h.unilateral), 0), isRecord, delta };
+  });
+
+  return enriched.reverse();
 }
 
 export function setVolume(set, unilateral) {

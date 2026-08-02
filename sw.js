@@ -2,7 +2,7 @@
  * Service Worker: App-Shell offline verfügbar halten.
  * Beim Ändern der Dateien CACHE hochzählen — dann holt sich das iPhone die neue Version.
  */
-const CACHE = 'trainingsplan-v1';
+const CACHE = 'trainingsplan-v2';
 
 const ASSETS = [
   './',
