@@ -421,6 +421,17 @@ export function setDone(session, entryId, setId, done) {
   return set;
 }
 
+/** Notiz zu einer Übung in diesem einen Training (Schmerzen, Abbruch …). */
+export function setEntryNote(session, entryId, note) {
+  const entry = entryById(session, entryId);
+  if (!entry) return null;
+  const text = String(note || '').trim();
+  if (text) entry.note = text;
+  else delete entry.note;
+  writeNow();
+  return entry;
+}
+
 export function entryById(session, entryId) {
   return session.entries.find((e) => e.id === entryId) || null;
 }
@@ -520,7 +531,7 @@ export function finishSession(session) {
     entry.sets = entry.sets.filter((s) => s.done);
     for (const set of entry.sets) delete set.suggest; // Vorschläge sind nur zur Laufzeit interessant
   }
-  session.entries = session.entries.filter((e) => e.sets.length > 0);
+  session.entries = session.entries.filter((e) => e.sets.length > 0 || e.note);
   session.finishedAt = new Date().toISOString();
   writeNow();
   return session;
@@ -574,7 +585,7 @@ export function exerciseHistory(exerciseId) {
     for (const entry of session.entries) {
       if (entry.exerciseId !== exerciseId) continue;
       const sets = entry.sets.filter((s) => s.done);
-      if (!sets.length) continue;
+      if (!sets.length && !entry.note) continue;
       out.push({
         sessionId: session.id,
         entryId: entry.id,
@@ -582,6 +593,7 @@ export function exerciseHistory(exerciseId) {
         createdAt: session.createdAt || '',
         dayName: session.dayName,
         plannedExerciseId: entry.plannedExerciseId,
+        note: entry.note || '',
         wasSubstitute: !!(entry.plannedExerciseId && entry.plannedExerciseId !== entry.exerciseId),
         unilateral: !!entry.unilateral,
         sets,

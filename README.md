@@ -99,6 +99,9 @@ Die Trainingsansicht ist bewusst karg gehalten — Übungsname, Ziel, Satzzeilen
   einen Blick, was heute schon wirklich steht.
 - Nur abgehakte Sätze landen im Verlauf; nicht abgehakte werden beim Beenden verworfen.
 - **＋ Satz** hängt eine Zeile an, *Letzten Satz entfernen* im ⋯-Menü nimmt eine weg.
+- **Notiz** (⋯-Menü an der Übung) für den Ausnahmefall: Schmerzen, Abbruch, Gerät
+  verstellt. Sie erscheint nur, wenn es sie gibt, und bleibt im Verlauf an diesem
+  Training hängen — auch dann, wenn kein einziger Satz zustande kam.
 - Einarmige Übungen haben getrennte Felder für **Wdh L** und **Wdh R** — dafür die
   Übung als *einarmig* markieren (⋯-Menü an der Übung oder Plan → Übung).
 

@@ -270,6 +270,31 @@ button { cursor: pointer; border: none; background: none; }
   margin-top: -4px;
 }
 
+/* Notiz: nur da, wenn es sie gibt — sonst nichts, was ablenkt. */
+.note-line {
+  display: flex;
+  gap: 6px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  padding: 0 12px 10px;
+  margin-top: -2px;
+}
+.note-line::before { content: '📝'; flex: none; font-size: 11px; opacity: 0.85; }
+.note-line.flush { padding: 8px 0 0; margin-top: 0; }
+
+.field textarea {
+  width: 100%;
+  min-height: 92px;
+  padding: 12px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+  line-height: 1.45;
+}
+.field textarea:focus { outline: none; border-color: var(--accent); }
+
 .ex-card.complete { border-color: rgba(62, 207, 142, 0.3); }
 .ex-card.complete .card-title { color: var(--text-dim); }
 .ex-card.complete .card-title::after { content: ' ✓'; color: var(--good); }

@@ -237,6 +237,7 @@ function entryCard(session, entry) {
         <button class="icon-btn" data-entry-menu="${entry.id}" type="button" aria-label="Optionen">⋯</button>
       </div>
       ${substituted ? `<div class="sub-note">Ersatz für ${esc(S.exerciseName(entry.plannedExerciseId))}</div>` : ''}
+      ${entry.note ? `<div class="note-line">${esc(entry.note)}</div>` : ''}
       <div class="card-body">
         <div class="sets">
           ${uni ? '<div class="set-head uni"><span></span><span>Gewicht</span><span>Wdh L</span><span>Wdh R</span><span></span></div>' : ''}
@@ -363,6 +364,11 @@ function entryMenu(session, entryId) {
       sub: 'Gerät besetzt? Ersatz wählen. Der Plan bleibt unverändert.',
       run: () => pickSubstitute(session, entry),
     },
+    {
+      label: entry.note ? 'Notiz bearbeiten' : 'Notiz',
+      sub: entry.note || 'Für den Ausnahmefall — Schmerzen, Abbruch, Gerät verstellt.',
+      run: () => noteSheet(session, entry),
+    },
   ];
 
   if (substituted) {
@@ -413,6 +419,37 @@ function entryMenu(session, entryId) {
   );
 
   actionSheet({ title: ex ? ex.name : 'Übung', actions });
+}
+
+/** Notiz zu einer Übung — bleibt im Verlauf an genau diesem Training hängen. */
+function noteSheet(session, entry) {
+  sheet({
+    title: S.exerciseName(entry.exerciseId),
+    body: html`
+      <div class="field">
+        <label for="note">Notiz zu dieser Übung, heute</label>
+        <textarea id="note" rows="3" placeholder="z. B. Schulter gezwickt, nach Satz 1 abgebrochen"
+                  autocapitalize="sentences">${esc(entry.note || '')}</textarea>
+        <div class="hint">Nur für dieses Training. Steht später im Verlauf dabei.</div>
+      </div>
+      <button class="btn primary" data-ok type="button">Speichern</button>
+      ${entry.note ? '<button class="btn danger" data-del type="button">Notiz löschen</button>' : ''}
+    `,
+    onMount(root, close) {
+      const field = root.querySelector('#note');
+      root.querySelector('[data-ok]').addEventListener('click', () => {
+        S.setEntryNote(session, entry.id, field.value);
+        close();
+        render();
+      });
+      root.querySelector('[data-del]')?.addEventListener('click', () => {
+        S.setEntryNote(session, entry.id, '');
+        close();
+        render();
+      });
+      setTimeout(() => field.focus(), 60);
+    },
+  });
 }
 
 function pickSubstitute(session, entry) {
@@ -1152,7 +1189,7 @@ function viewExerciseHistory() {
 
   setTop({
     title: ex.name,
-    sub: `${prog.length} Einträge${ex.unilateral ? ' · einarmig (L/R)' : ''}${assisted ? ' · weniger Gewicht = besser' : ''}`,
+    sub: `${prog.length} ${prog.length === 1 ? 'Eintrag' : 'Einträge'}${ex.unilateral ? ' · einarmig (L/R)' : ''}${assisted ? ' · weniger Gewicht = besser' : ''}`,
     left: { label: '‹ Zurück', run: back },
   });
 
@@ -1179,7 +1216,7 @@ function viewExerciseHistory() {
       ${
         assisted
           ? `<div class="stat"><div class="k">Sätze gesamt</div><div class="v">${totalSets}</div></div>`
-          : `<div class="stat"><div class="k">Volumen zuletzt</div><div class="v">${fmtInt(latest.volume || 0)} kg</div></div>`
+          : `<div class="stat"><div class="k">Volumen zuletzt</div><div class="v">${latest.sets.length ? `${fmtInt(latest.volume || 0)} kg` : '–'}</div></div>`
       }
     </div>
 
@@ -1211,11 +1248,18 @@ function viewExerciseHistory() {
                 ${h.isRecord ? '<span class="badge-pr">Bestwert</span>' : ''}
                 ${h.wasSubstitute ? '<span class="badge-sub">als Ersatz</span>' : ''}
               </div>
-              <div class="hist-sets">${setsSummary(h.sets, ex.unilateral, h.best)}</div>
-              <div class="hist-meta">
-                <span>${h.sets.length} Sätze${h.volume != null ? ` · ${fmtInt(h.volume)} kg Volumen` : ''}</span>
-                ${deltaTag(h.delta)}
+              <div class="hist-sets">
+                ${h.sets.length ? setsSummary(h.sets, ex.unilateral, h.best) : '<span class="tiny muted">Keine Sätze protokolliert</span>'}
               </div>
+              ${h.note ? `<div class="note-line flush">${esc(h.note)}</div>` : ''}
+              ${
+                h.sets.length
+                  ? `<div class="hist-meta">
+                       <span>${h.sets.length} Sätze${h.volume != null ? ` · ${fmtInt(h.volume)} kg Volumen` : ''}</span>
+                       ${deltaTag(h.delta)}
+                     </div>`
+                  : ''
+              }
             </div>
           `
         )
@@ -1258,11 +1302,18 @@ function viewSessionDetail() {
                 ${info && info.isRecord ? '<span class="badge-pr">Bestwert</span>' : ''}
                 ${wasSub ? `<span class="badge-sub">Ersatz für ${esc(S.exerciseName(entry.plannedExerciseId))}</span>` : ''}
               </div>
-              <div class="hist-sets">${setsSummary(entry.sets, entry.unilateral, best)}</div>
-              <div class="hist-meta">
-                <span>${entry.sets.length} Sätze${vol != null ? ` · ${fmtInt(vol)} kg Volumen` : ''}</span>
-                ${deltaTag(info && info.delta)}
+              <div class="hist-sets">
+                ${entry.sets.length ? setsSummary(entry.sets, entry.unilateral, best) : '<span class="tiny muted">Keine Sätze protokolliert</span>'}
               </div>
+              ${entry.note ? `<div class="note-line flush">${esc(entry.note)}</div>` : ''}
+              ${
+                entry.sets.length
+                  ? `<div class="hist-meta">
+                       <span>${entry.sets.length} Sätze${vol != null ? ` · ${fmtInt(vol)} kg Volumen` : ''}</span>
+                       ${deltaTag(info && info.delta)}
+                     </div>`
+                  : ''
+              }
             </button>
           `;
         })

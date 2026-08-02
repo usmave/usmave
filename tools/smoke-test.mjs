@@ -196,6 +196,18 @@ await fill(6, 'reps', '12');
 await check(6);
 await shot('substitute');
 
+step('Notiz zur Übung — für den Ausnahmefall');
+await card(3).locator('[data-entry-menu]').click();
+await wait();
+await page.getByText('Notiz', { exact: true }).click();
+await wait(250);
+await page.locator('#note').fill('Schulter gezwickt, nach Satz 1 abgebrochen');
+await page.locator('[data-ok]').click();
+await wait(300);
+ok((await card(3).locator('.note-line').innerText()).includes('Schulter gezwickt'), 'Notiz steht an der Übung');
+ok((await page.locator('.note-line').count()) === 1, 'nur diese eine Übung zeigt eine Notiz');
+await shot('note');
+
 step('Satz hinzufügen');
 const before = await card(0).locator('.set-row').count();
 await card(0).locator('[data-add-set]').click();
@@ -272,6 +284,16 @@ ok(
 );
 ok(verlauf.includes('Volumen'), 'Volumen pro Eintrag');
 await shot('history-progress');
+
+step('Notiz überlebt das Beenden und steht im Verlauf');
+await page.locator('[data-top="left"]').click();
+await wait();
+await page.getByText('Schulterdrücken Maschine sitzend').first().click();
+await wait(250);
+const notiz = await page.locator('.view').innerText();
+ok(notiz.includes('Schulter gezwickt'), 'Notiz im Übungsverlauf');
+ok(notiz.includes('Keine Sätze protokolliert'), 'abgebrochene Übung bleibt als Eintrag erhalten');
+await shot('note-history');
 
 step('Trainingsdetail: Kennzahlen und Sprung zur Übung');
 await page.locator('[data-top="left"]').click();
