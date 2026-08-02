@@ -28,7 +28,7 @@ Beim ersten Start legt **Meinen Plan anlegen** Tag A fertig an:
 | 2 | Butterflymaschine | 2 |
 | 3 | Bankdrückmaschine sitzend | 2 |
 | 4 | Schulterdrücken Maschine sitzend | 2 |
-| 5 | Seitheben Kabel | 2 |
+| 5 | Seitheben Kabel *(einarmig, L/R getrennt)* | 2 |
 | 6 | Trizepsdrücken Kabel | 2 |
 | 7 | Dips | 3 |
 

@@ -653,7 +653,7 @@ export function seedMyPlan() {
   slot(a.id, 'Butterflymaschine', 2);
   slot(a.id, 'Bankdrückmaschine sitzend', 2);
   slot(a.id, 'Schulterdrücken Maschine sitzend', 2);
-  slot(a.id, 'Seitheben Kabel', 2);
+  slot(a.id, 'Seitheben Kabel', 2, true); // einarmig: Wdh links/rechts getrennt
   slot(a.id, 'Trizepsdrücken Kabel', 2);
   slot(a.id, 'Dips', 3);
 

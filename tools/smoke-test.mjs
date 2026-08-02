@@ -97,18 +97,29 @@ await page.locator('[data-ok]').click();
 await wait(300);
 ok((await page.locator('[data-slot]').count()) === 1, 'Tag B hat eine Übung');
 
-step('Seitheben Kabel als einseitig markieren');
+step('Tag A: Seitheben ist einarmig hinterlegt');
 await page.locator('[data-top="left"]').click(); // zurück zur Planübersicht
 await wait(250);
 await page.locator('[data-day]').first().click();
 await wait(250);
 ok((await page.locator('[data-slot]').count()) === 7, 'Tag A hat sieben Übungen');
-await page.locator('[data-slot]').nth(4).click();
+ok(
+  (await page.locator('[data-slot]').nth(4).innerText()).includes('einseitig'),
+  'Seitheben Kabel ist als einarmig markiert'
+);
+await shot('plan-tag-a');
+
+step('Einseitig lässt sich an- und wieder abschalten');
+await page.locator('[data-slot]').nth(5).click();
 await wait(250);
 await page.getByText('Als einseitig markieren (L/R)').click();
 await wait(300);
-ok((await page.locator('.view').innerText()).includes('einseitig'), 'Übung ist als einseitig markiert');
-await shot('plan-tag-a');
+ok((await page.locator('[data-slot]').nth(5).innerText()).includes('einseitig'), 'eingeschaltet');
+await page.locator('[data-slot]').nth(5).click();
+await wait(250);
+await page.getByText('Einseitig (L/R) ausschalten').click();
+await wait(300);
+ok(!(await page.locator('[data-slot]').nth(5).innerText()).includes('einseitig'), 'wieder ausgeschaltet');
 
 step('Training starten — Tag A ist dran');
 await tab('training');
