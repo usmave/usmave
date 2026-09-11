@@ -57,7 +57,22 @@ def ycruncher(minuten, tests=None, threads=None):
         return {"test": "y-cruncher", "ergebnis": NICHT_MOEGLICH,
                 "hinweis": "y-cruncher nicht gefunden."}
 
-    tests = tests or ["VT3"]
+    tests = list(tests or ["VT3"])
+
+    # Alte Anleitungen nennen weiterhin VST. Der Test wurde in y-cruncher 0.8.3
+    # entfernt; ein Aufruf damit schlägt fehl und sähe wie Instabilität aus.
+    ersetzt = []
+    for i, name in enumerate(tests):
+        nachfolger = config.YCRUNCHER_ENTFERNT.get(name.upper())
+        if nachfolger:
+            tests[i] = nachfolger
+            ersetzt.append(f"{name} -> {nachfolger}")
+    unbekannt = [n for n in tests if n.upper() not in
+                 {t.upper() for t in config.YCRUNCHER_TESTS}]
+    if unbekannt:
+        return {"test": "y-cruncher", "ergebnis": NICHT_MOEGLICH,
+                "hinweis": f"Unbekannte Testnamen: {', '.join(unbekannt)}."}
+
     sekunden = int(minuten * 60)
     befehl = [str(pfad), "stress", f"-D:{sekunden}"]
     if threads:
@@ -92,8 +107,12 @@ def ycruncher(minuten, tests=None, threads=None):
             "protokoll": str(protokoll), "treffer": treffer[:5],
             "hinweis": "Vorzeitig beendet." if zu_frueh else "Fehler gemeldet.",
         }
-    return {"test": "y-cruncher", "ergebnis": BESTANDEN, "dauer_min": round(dauer, 1),
-            "protokoll": str(protokoll), "tests": tests}
+    ergebnis_daten = {"test": "y-cruncher", "ergebnis": BESTANDEN,
+                      "dauer_min": round(dauer, 1), "protokoll": str(protokoll),
+                      "tests": tests}
+    if ersetzt:
+        ergebnis_daten["hinweis"] = f"Veralteter Testname ersetzt: {', '.join(ersetzt)}."
+    return ergebnis_daten
 
 
 # ---------------------------------------------------- Fensterprogramme (TM5)
@@ -160,12 +179,12 @@ def fensterprogramm(schluessel, anzeigename, minuten, argumente=None):
         gelesen.append(datei.name)
         treffer.extend(_text_bewerten(inhalt))
 
-    if treffer or vorzeitig_beendet or not befund["sauber"]:
+    if treffer or vorzeitig_beendet or befund["belastend"]:
         return {
             "test": anzeigename, "ergebnis": FEHLER, "dauer_min": round(dauer, 1),
             "treffer": treffer[:5], "whea": befund,
             "hinweis": ("Programm hat sich vorzeitig beendet." if vorzeitig_beendet
-                        else whea.befund_erklaeren(befund) if not befund["sauber"]
+                        else whea.befund_erklaeren(befund) if befund["belastend"]
                         else "Fehler im Protokoll."),
         }
 
@@ -251,7 +270,7 @@ def stufe_fahren(stufe, abbruch_bei_fehler=True, melden=print):
     hat_unsicher = any(e["ergebnis"] == UNSICHER for e in einzelergebnisse)
     lief_etwas = any(e["ergebnis"] != NICHT_MOEGLICH for e in einzelergebnisse)
 
-    if hat_fehler or not befund["sauber"]:
+    if hat_fehler or befund["belastend"]:
         gesamt = FEHLER
     elif not lief_etwas:
         gesamt = NICHT_MOEGLICH

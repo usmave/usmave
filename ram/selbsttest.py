@@ -414,12 +414,155 @@ def test_kandidat_kennung():
            "eine andere Einstellung bekommt eine andere Kennung")
 
 
+def test_whea_zuordnung():
+    """WHEA-Einträge müssen nach Komponente getrennt werden.
+
+    Ereignis 17 kommt meist von PCI Express. Würde es dem Speicher
+    zugerechnet, verwürfe eine zickige Grafikkarte stabile Einstellungen.
+    """
+    print("\nWHEA-Zuordnung")
+    from ramtune import whea
+
+    pcie = {"Id": 17, "Message": "A corrected hardware error has occurred. "
+                                 "Reported by component: PCI Express Root Port"}
+    pruefe(whea._domaene(pcie) == "pcie",
+           "Ereignis 17 von PCI Express wird nicht dem Speicher zugerechnet")
+
+    maschine = {"Id": 19, "Message": "A corrected hardware error has occurred. "
+                                     "Error Source: Machine Check Exception"}
+    pruefe(whea._domaene(maschine) == "speicher",
+           "Ereignis 19 mit Machine Check gilt als speichernah")
+
+    seite = {"Id": 47, "Message": "A corrected memory error has occurred."}
+    pruefe(whea._domaene(seite) == "speicher", "Ereignis 47 gilt als speichernah")
+
+    leer = {"Id": 17, "Message": ""}
+    pruefe(whea._domaene(leer) == "unklar",
+           "Ereignis 17 ohne Text bleibt unklar statt fälschlich 'Speicher'")
+
+    # Nur PCIe-Fehler dürfen einen Lauf nicht ungültig machen.
+    nur_pcie = {"speicherrelevant": 0, "pcie": 3, "unklar": 0, "toedlich": 0,
+                "unsauberer_neustart": False}
+    nur_pcie["belastend"] = (nur_pcie["speicherrelevant"] > 0
+                             or nur_pcie["toedlich"] > 0
+                             or nur_pcie["unsauberer_neustart"])
+    pruefe(not nur_pcie["belastend"],
+           "ein Lauf mit ausschließlich PCIe-Fehlern bleibt gültig")
+
+    text = whea.befund_erklaeren({"ohne_befund": True})
+    pruefe("kein Beweis" in text.lower() or "gegenbeweis" in text.lower(),
+           "ein leeres Protokoll wird ausdrücklich nicht als Stabilitätsbeweis ausgegeben")
+
+
+def test_ycruncher_testnamen():
+    """VST wurde in y-cruncher 0.8.3 entfernt - VT3 ist der Nachfolger."""
+    print("\ny-cruncher-Testnamen")
+    pruefe("VST" not in config.YCRUNCHER_TESTS, "VST steht nicht mehr in der Liste")
+    pruefe(config.YCRUNCHER_ENTFERNT.get("VST") == "VT3",
+           "VST ist als entfernt vermerkt, mit VT3 als Nachfolger")
+
+    for name, stufe in config.STUFEN.items():
+        for testname, parameter in stufe["tests"]:
+            if testname != "ycruncher":
+                continue
+            fehlend = [x for x in parameter.get("tests", [])
+                       if x.upper() not in {y.upper() for y in config.YCRUNCHER_TESTS}]
+            pruefe(not fehlend,
+                   f"Stufe '{name}' nennt nur Tests, die es noch gibt")
+
+
+def test_die_unsicherheit():
+    """Eine Vermutung darf nicht als Gewissheit durchgehen."""
+    print("\nSicherheit der Chip-Erkennung")
+
+    chip, sicherheit = profiles.chip_erkennen("SK Hynix", "HMCG88AGBUA A-die")
+    pruefe(chip == "hynix_a" and sicherheit == "sicher",
+           "ausdrücklich benanntes A-die gilt als sicher")
+
+    chip, sicherheit = profiles.chip_erkennen("SK Hynix", "HMCG88MEBUA")
+    pruefe(chip == "hynix_unbekannt" and sicherheit == "vermutet",
+           "Hynix ohne Untertyp wird als unbekannt geführt, nicht als M-die geraten")
+
+    chip, sicherheit = profiles.chip_erkennen("", "")
+    pruefe(chip == "unbekannt" and sicherheit == "geraten",
+           "ohne jede Angabe wird das offen ausgewiesen")
+
+    sicher = profiles.startsatz("hynix_m", 6000, True, "sicher")
+    vermutet = profiles.startsatz("hynix_unbekannt", 6000, True, "vermutet")
+    pruefe(vermutet["tCL"] > sicher["tCL"],
+           f"unsichere Erkennung startet zahmer ({vermutet['tCL']} statt {sicher['tCL']})")
+    pruefe(not profiles.abhaengigkeiten_pruefen(vermutet),
+           "auch der zahmere Startsatz ist in sich stimmig")
+
+
+def test_machbarkeit():
+    """Der Nachweis muss beide Fehlschläge sauber auseinanderhalten."""
+    print("\nMachbarkeitsnachweis")
+    from ramtune import machbarkeit
+
+    ordner = Path(tempfile.mkdtemp())
+    alte_datei = machbarkeit.DATEI
+    machbarkeit.DATEI = ordner / "machbarkeit.json"
+
+    try:
+        export = ordner / "zen.txt"
+        export.write_text("Frequency: 3000 MHz\nCL: 30\ntRCD: 36\ntRP: 36\n"
+                          "tRAS: 30\ntRFC: 520\n", encoding="utf-8")
+
+        daten, fehler = machbarkeit.beginnen(export)
+        pruefe(fehler is None and daten is not None, "Schritt 1 sichert den Ausgangszustand")
+        pruefe(daten["aenderung"]["timing"] == "tRFC", "tRFC wird als Teständerung gewählt")
+        pruefe(daten["aenderung"]["nachher"] > daten["aenderung"]["vorher"],
+               "die Teständerung lockert das Timing, statt es zu verschärfen")
+
+        # Der Weg trägt: der neue Wert liegt an.
+        angekommen = ordner / "zen2.txt"
+        angekommen.write_text("Frequency: 3000 MHz\nCL: 30\ntRCD: 36\ntRP: 36\n"
+                              "tRAS: 30\ntRFC: 552\n", encoding="utf-8")
+        daten, _ = machbarkeit.aenderung_pruefen(angekommen)
+        pruefe(daten["aenderung_erfolg"], "eine angekommene Vorgabe wird erkannt")
+
+        daten, _ = machbarkeit.rueckweg_pruefen(export)
+        pruefe(daten["rueckweg_erfolg"], "der wiederhergestellte Ausgangszustand wird erkannt")
+        schluessel, _ = machbarkeit.urteil(daten)
+        pruefe(schluessel == "getragen", "vollständiger Durchgang ergibt 'getragen'")
+
+        # Der Weg trägt nicht: der Wert kommt nicht an.
+        machbarkeit.zuruecksetzen()
+        machbarkeit.beginnen(export)
+        daten, _ = machbarkeit.aenderung_pruefen(export)  # unverändert
+        pruefe(not daten["aenderung_erfolg"], "eine nicht angekommene Vorgabe wird erkannt")
+        schluessel, _ = machbarkeit.urteil(daten)
+        pruefe(schluessel == "nicht_getragen", "das ergibt 'nicht getragen'")
+
+        # Der gefährliche Fall: hin ja, zurück nein.
+        machbarkeit.zuruecksetzen()
+        machbarkeit.beginnen(export)
+        machbarkeit.aenderung_pruefen(angekommen)
+        daten, _ = machbarkeit.rueckweg_pruefen(angekommen)  # noch der geänderte Wert
+        pruefe(not daten["rueckweg_erfolg"], "ein misslungener Rückweg wird erkannt")
+        schluessel, text = machbarkeit.urteil(daten)
+        pruefe(schluessel == "halb" and "gefährlicher" in text,
+               "fehlender Rückweg wird als der gefährlichere Fall benannt")
+
+        pruefe(machbarkeit.beginnen(None)[1] is not None,
+               "ohne ZenTimings-Export wird der Nachweis verweigert statt vorgetäuscht")
+
+    finally:
+        machbarkeit.DATEI = alte_datei
+        shutil.rmtree(ordner, ignore_errors=True)
+
+
 def main():
     print("=" * 68)
     print("  RamTune - Selbsttest (ohne Hardware)")
     print("=" * 68)
 
     test_timingregeln()
+    test_die_unsicherheit()
+    test_ycruncher_testnamen()
+    test_whea_zuordnung()
+    test_machbarkeit()
     test_spannungsgrenzen()
     test_temperaturdeckel()
     test_bewertung()

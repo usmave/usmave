@@ -108,7 +108,7 @@ STUFEN = {
         "dauer_min": 25,
         "zweck": "Fängt den Großteil der instabilen Kandidaten, bevor Zeit investiert wird.",
         "tests": [
-            ("ycruncher", {"tests": ["VT3", "VST"], "minuten": 12}),
+            ("ycruncher", {"tests": ["VT3"], "minuten": 12}),
             ("tm5", {"konfig": "absolut", "zyklen": 1, "minuten": 12}),
         ],
     },
@@ -119,7 +119,7 @@ STUFEN = {
         "tests": [
             ("tm5", {"konfig": "absolut", "zyklen": 3, "minuten": 60}),
             ("karhu", {"abdeckung": 2000, "minuten": 45}),
-            ("ycruncher", {"tests": ["VT3", "VST", "N64"], "minuten": 15}),
+            ("ycruncher", {"tests": ["VT3", "N64"], "minuten": 15}),
         ],
     },
     "alltag": {
@@ -129,12 +129,20 @@ STUFEN = {
         "tests": [
             ("karhu", {"abdeckung": 10000, "minuten": 240}),
             ("tm5", {"konfig": "extreme", "zyklen": 3, "minuten": 150}),
-            ("ycruncher", {"tests": ["VT3", "VST", "N64", "C17"], "minuten": 30}),
+            ("ycruncher", {"tests": ["VT3", "N64", "C17"], "minuten": 30}),
         ],
     },
 }
 
 STUFEN_REIHE = ["rauch", "sichtung", "solide", "alltag"]
+
+# y-cruncher hat den früher überall empfohlenen Test VST in Fassung 0.8.3
+# entfernt; VT3 ist sein neu geschriebener Nachfolger und gilt als der
+# schärfere Test. Alte Anleitungen im Netz nennen weiterhin VST - ein Aufruf
+# damit scheitert auf jeder aktuellen Fassung.
+YCRUNCHER_TESTS = ["BKT", "BBP", "SFT", "SFTv", "SNT", "SVT", "FFT",
+                   "N32", "N64", "HNT", "C17", "VT3"]
+YCRUNCHER_ENTFERNT = {"VST": "VT3"}
 
 
 # ------------------------------------------------------------------ Benchmarks

@@ -3,15 +3,21 @@
 
 Aufruf:
     python ramtune.py pruefen     Werkzeuge und Hardware ansehen, nichts ändern
+    python ramtune.py machbarkeit einen Durchgang nachweisen, bevor es losgeht
     python ramtune.py start       Vorgang beginnen (misst zuerst EXPO als Bezug)
     python ramtune.py weiter      nach jedem Neustart: auswerten und weiterplanen
     python ramtune.py bericht     HTML-Bericht erzeugen und öffnen
     python ramtune.py rettung     letzte stabile Einstellung ausgeben
     python ramtune.py autostart   nach dem Anmelden selbst weitermachen
 
-Der einzige Handgriff, den dieses Programm nicht übernehmen kann, ist die
-Eingabe im BIOS: Auf AM5 lassen sich Timings nicht aus Windows heraus setzen.
-Alles davor und danach macht es selbst.
+Gesetzt werden die Werte im BIOS. Ryzen Master kann auf AM5 zwar ebenfalls
+Speichereinstellungen vorgeben, ist für ein Programm aber nicht ansteuerbar:
+Das offizielle AMD-SDK liest nur. Alles außer diesem einen Handgriff -
+vorschlagen, prüfen, testen, messen, protokollieren und nach einem Absturz
+wieder aufsetzen - macht dieses Programm selbst.
+
+Vor dem ersten Suchlauf steht "machbarkeit": ein vollständiger Durchgang aus
+Ändern, Neustart, Prüfen und Zurücksetzen. Erst wenn der trägt, lohnt der Rest.
 """
 
 import argparse
@@ -21,8 +27,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from ramtune import (bench, config, detect, plan, profiles, report, state,
-                     stress, system, tools)
+from ramtune import (bench, config, detect, machbarkeit, plan, profiles,
+                     report, state, stress, system, tools)
 from ramtune.state import (ABGESTUERZT, AUSGEWERTET, BESTANDEN, FEHLER, LAEUFT,
                            Laufbuch, WARTET_AUF_BIOS, Zustand)
 
@@ -141,7 +147,11 @@ def befehl_start(args):
     ist = hardware.get("ist_zustand") or {}
     mclk = ist.get("mclk") or 6000
     timings = profiles.startsatz(hardware["chip"], mclk,
-                                 hardware["bestueckung"]["dual_rank"])
+                                 hardware["bestueckung"]["dual_rank"],
+                                 hardware.get("chip_sicherheit", "vermutet"))
+    if not hardware.get("chip_sicher"):
+        print(f"\n  {hardware.get('chip_hinweis', '')}")
+        print("  Der Startsatz bekommt deshalb einen Sicherheitsaufschlag.")
     startkandidat = {
         "id": "r000", "mclk": mclk, "fclk": config.FCLK["typisch"],
         "timings": timings, "spannungen": ist.get("spannungen", {}),
@@ -297,7 +307,8 @@ def _naechste_runde(zustand, laufbuch, leiter, hardware):
             print("  Läuft es nicht im 1:1-Betrieb (UCLK = MCLK), ist der Versuch "
                   "sinnlos - 2:1 kostet beim X3D mehr, als der Takt bringt.")
             neuer_satz = profiles.startsatz(hardware.get("chip", "unbekannt"), hoeher,
-                                            bestueckung.get("dual_rank", True))
+                                            bestueckung.get("dual_rank", True),
+                                            hardware.get("chip_sicherheit", "vermutet"))
             kandidat = {
                 "id": f"r{zustand.runde + 1:03d}", "mclk": hoeher,
                 "fclk": config.FCLK["typisch"], "timings": neuer_satz,
@@ -369,6 +380,107 @@ def _kandidat_ausgeben(kandidat, vorher, stufe, hardware):
     print("\n  Startet der Rechner nicht mehr: kurz ausschalten und zweimal beim "
           "Hochfahren abwürgen,\n  dann setzt das Board das BIOS zurück. Danach "
           "'python ramtune.py rettung' für die\n  letzte stabile Einstellung.")
+
+
+# ------------------------------------------------- Machbarkeitsnachweis
+
+def befehl_machbarkeit(args):
+    """Ein vollständiger Durchgang, bevor auf den Weg gebaut wird."""
+    if args.neu:
+        machbarkeit.zuruecksetzen()
+
+    if args.wege:
+        kopf("Wege, eine Einstellung zu setzen")
+        for weg in machbarkeit.wege_erkunden():
+            zustand = ("vorhanden" if weg["vorhanden"] else "nicht gefunden")
+            print(f"\n  {weg['name']} ({zustand})")
+            print(f"    automatisierbar: {weg['automatisierbar']}")
+            for zeile in _umbrechen(weg["anmerkung"], 64):
+                print(f"    {zeile}")
+        return 0
+
+    daten = machbarkeit._laden()
+    schritt = daten.get("schritt", machbarkeit.NICHT_BEGONNEN)
+
+    # --- Schritt 1 ---------------------------------------------------------
+    if schritt == machbarkeit.NICHT_BEGONNEN:
+        kopf("Machbarkeitsnachweis, Schritt 1 von 3: Ausgangszustand sichern")
+        daten, fehler = machbarkeit.beginnen(args.zentimings)
+        if fehler:
+            print(f"\n  {fehler}")
+            return 1
+
+        aenderung = daten["aenderung"]
+        print(f"\n  Ausgangszustand gesichert "
+              f"({len(daten['ausgangszustand']['timings'])} Timings).")
+        print(f"\n  Teständerung: {aenderung['timing']} "
+              f"{aenderung['vorher']} -> {aenderung['nachher']}")
+        for zeile in _umbrechen(aenderung["begruendung"], 64):
+            print(f"  {zeile}")
+        print(f"\n  Jetzt im BIOS setzen:")
+        print(f"    {aenderung['agesa']} = {aenderung['nachher']}")
+        print("\n  Danach neu starten, in ZenTimings neu exportieren und:")
+        print("    python ramtune.py machbarkeit --zentimings <neuer Export>")
+        return 0
+
+    # --- Schritt 2 ---------------------------------------------------------
+    if schritt == machbarkeit.AENDERUNG_ANGEFORDERT:
+        kopf("Machbarkeitsnachweis, Schritt 2 von 3: kam die Vorgabe an?")
+        daten, fehler = machbarkeit.aenderung_pruefen(args.zentimings)
+        if fehler:
+            print(f"\n  {fehler}")
+            return 1
+
+        letzter = daten["protokoll"][-1]
+        aenderung = daten["aenderung"]
+        if letzter["erfolg"]:
+            print(f"\n  Ja: {aenderung['timing']} liegt mit "
+                  f"{letzter['anliegend']} an, wie vorgegeben.")
+            print(f"\n  Jetzt zurücksetzen - im BIOS wieder:")
+            print(f"    {aenderung['agesa']} = {aenderung['vorher']}")
+            print("\n  Danach neu starten, neu exportieren und:")
+            print("    python ramtune.py machbarkeit --zentimings <neuer Export>")
+            return 0
+
+        print(f"\n  Nein: erwartet {letzter['erwartet']}, "
+              f"anliegend {letzter['anliegend']}.")
+        return _machbarkeit_urteil(daten)
+
+    # --- Schritt 3 ---------------------------------------------------------
+    if schritt == machbarkeit.RUECKWEG_ANGEFORDERT:
+        kopf("Machbarkeitsnachweis, Schritt 3 von 3: ist der Rückweg sauber?")
+        daten, fehler = machbarkeit.rueckweg_pruefen(args.zentimings)
+        if fehler:
+            print(f"\n  {fehler}")
+            return 1
+
+        letzter = daten["protokoll"][-1]
+        if letzter["erfolg"]:
+            print("\n  Ja: alle Timings entsprechen wieder dem Ausgangszustand.")
+        else:
+            print("\n  Nein, diese Werte weichen ab:")
+            for zeile in letzter["abweichungen"][:8]:
+                print(f"    - {zeile}")
+        return _machbarkeit_urteil(daten)
+
+    return _machbarkeit_urteil(daten)
+
+
+def _machbarkeit_urteil(daten):
+    schluessel, text = machbarkeit.urteil(daten)
+    kopf("Ergebnis des Nachweises")
+    for zeile in _umbrechen(text, 64):
+        print(f"  {zeile}")
+    if schluessel == "getragen":
+        print("\n  Nächster Schritt:  python ramtune.py start")
+    else:
+        print("\n  Neuer Anlauf:  python ramtune.py machbarkeit --neu --zentimings <Export>")
+    return 0 if schluessel == "getragen" else 1
+
+
+def _umbrechen(text, breite):
+    import textwrap
+    return textwrap.wrap(text, breite) or [""]
 
 
 # ------------------------------------------------------- Weitere Befehle
@@ -474,6 +586,15 @@ def main(argv=None):
     p.add_argument("--trotzdem", action="store_true",
                    help="auch testen, wenn das BIOS die Werte nicht übernommen hat")
     p.set_defaults(funktion=befehl_weiter)
+
+    p = unterbefehle.add_parser(
+        "machbarkeit",
+        help="einen Durchgang nachweisen, bevor der Suchlauf beginnt")
+    gemeinsam(p)
+    p.add_argument("--wege", action="store_true",
+                   help="nur zeigen, welche Wege zum Setzen es gibt")
+    p.add_argument("--neu", action="store_true", help="Nachweis neu beginnen")
+    p.set_defaults(funktion=befehl_machbarkeit)
 
     p = unterbefehle.add_parser("dauertest", help="beste Einstellung über Nacht prüfen")
     p.set_defaults(funktion=befehl_dauertest)

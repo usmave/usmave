@@ -8,15 +8,32 @@ Ausgelegt auf **Ryzen 7 9800X3D, 2×32 GB, ASRock-Board, Windows 11** mit dem Zi
 
 ## Das Wichtigste zuerst
 
-**Auf AM5 kann kein Programm unter Windows Speichertimings setzen.** Taktrate,
-Timings und Spannungen werden im BIOS gesetzt und beim Einschalten vom
-Speichertraining übernommen. Wer etwas anderes verspricht, kann es nicht halten.
+Speichereinstellungen lassen sich auf AM5 **nicht nur** im BIOS vorgeben:
+AMD Ryzen Master kann auf unterstützten Systemen ebenfalls Speichertakt,
+Fabric-Takt, UCLK-Modus, Spannungen und Timings setzen — ein EXPO-Profil sogar
+ohne Neustart, Timings in der Regel mit einem.
 
-RamTune automatisiert deshalb alles *außer* dem einen Handgriff:
+Für ein *Programm* ist dieser Weg aber nicht ohne Weiteres nutzbar. Das
+offizielle Ryzen-Master-SDK ist ein reines **Monitoring**-SDK: Es liest
+Speichertakt, VDDIO, RAS, CAS, tRCD und tRP — es schreibt sie nicht. Bliebe
+die Fernsteuerung der Oberfläche, wie sie Bastelskripte in der Gemeinde per
+AutoHotkey machen. Ob das auf einem bestimmten Board zuverlässig genug ist,
+und vor allem ob der **Rückweg** zu einer startfähigen Konfiguration
+verlässlich funktioniert, ist eine offene Frage — keine, die sich aus
+Dokumentation beantworten lässt.
+
+Deshalb gilt hier: **Der Weg wird nachgewiesen, bevor darauf gebaut wird.**
+`python ramtune.py machbarkeit` führt einen einzigen vollständigen Durchgang —
+sichern, ändern, neu starten, prüfen, zurücksetzen. Erst wenn der trägt, lohnt
+der Suchlauf. Bis dahin arbeitet RamTune über die BIOS-Eingabe, die auf jedem
+Board funktioniert.
+
+Automatisiert ist in beiden Fällen alles *außer* dem Setzen selbst:
 
 | Schritt | wer |
 | --- | --- |
-| Hardware und Chiptyp erkennen | RamTune |
+| nachweisen, dass ein Durchgang überhaupt trägt | RamTune |
+| Hardware und Chiptyp erkennen (samt Unsicherheit) | RamTune |
 | nächste sinnvolle Einstellung berechnen | RamTune |
 | **Werte im BIOS eintragen** | **du, einmal pro Runde** |
 | prüfen, ob das BIOS die Werte übernommen hat | RamTune |
@@ -39,13 +56,25 @@ Entscheidung gehört dir:
 
 | Werkzeug | wofür | nötig? |
 | --- | --- | --- |
-| [y-cruncher](http://www.numberworld.org/y-cruncher/) | findet Instabilität des Speichercontrollers am schnellsten | ja |
+| [y-cruncher](http://www.numberworld.org/y-cruncher/) | findet Instabilität des Speichercontrollers am schnellsten (Test **VT3**) | ja |
 | [TestMem5](https://github.com/CoolCmd/TestMem5) + anta777-Konfigurationen | der DDR5-Standardtest | ja |
 | [Intel MLC](https://www.intel.com/content/www/us/en/download/736633/) | misst Latenz und Bandbreite (läuft trotz des Namens auf AMD) | ja |
 | [ZenTimings](https://github.com/irusanov/ZenTimings) | liest die tatsächlich anliegenden Werte | dringend empfohlen |
 | [HWiNFO64](https://www.hwinfo.com/download/) | Modultemperatur — entscheidet über tREFI | dringend empfohlen |
 | [Karhu RAMTest](https://www.karhusoftware.com/ramtest/) | beste Fehlerausbeute pro Stunde (ca. 10 €) | optional |
-| [Thaiphoon Burner](https://www.softnology.biz/files.html) | bestimmt den Speicherchip eindeutig | optional |
+| [Thaiphoon Burner](https://www.softnology.biz/files.html) | bestimmt den Speicherchip eindeutig | sehr empfohlen |
+| [AMD Ryzen Master](https://www.amd.com/en/products/software/ryzen-master.html) | zweiter Weg, Einstellungen vorzugeben (siehe oben) | optional |
+
+Zu **y-cruncher**: Viele Anleitungen im Netz nennen noch den Test `VST`. Den
+gibt es seit Fassung 0.8.3 nicht mehr — `VT3` ist sein neu geschriebener
+Nachfolger und gilt als der schärfere Test. RamTune ersetzt einen veralteten
+Testnamen selbsttätig und sagt es dazu.
+
+Zu **Thaiphoon Burner**: Im SPD steht der Hersteller, nicht der Untertyp des
+Chips. Ohne dieses Werkzeug bleibt bei Hynix offen, ob A-die oder M-die
+verbaut ist — und A-die kann deutlich mehr. RamTune rät dann nicht, sondern
+führt den Chip als *unbekannt* und legt einen Sicherheitsaufschlag auf die
+Startwerte. Das kostet ein paar Runden, die die Suche ohnehin abarbeitet.
 
 Die Programme irgendwo ablegen und den Ordner `ram/werkzeuge/` nennen, oder sie
 dort hineinkopieren — RamTune sucht dort, im Suchpfad und in den üblichen Ordnern.
@@ -72,7 +101,27 @@ verlieren viele AM5-Systeme mehrere hundert MT/s, ohne dass irgendwo eine
 Fehlermeldung erscheint. Das lässt sich durch keine noch so gute Einstellung
 ausgleichen — nur durch Umstecken.
 
-### 2. Beginnen
+### 2. Nachweisen, dass ein Durchgang trägt
+
+```bash
+python ramtune.py machbarkeit --wege          # welche Wege gibt es?
+python ramtune.py machbarkeit --zentimings zen.txt
+```
+
+Drei Schritte über zwei Neustarts: Ausgangszustand sichern, **ein Timing
+lockern** (nicht verschärfen — geprüft wird der Weg, nicht die Stabilität),
+nach dem Neustart prüfen ob die Vorgabe ankam, dann zurücksetzen und prüfen ob
+der Ausgangszustand wirklich wieder steht.
+
+Das Urteil unterscheidet drei Ausgänge, und der mittlere ist der wichtigste:
+
+| Ausgang | Bedeutung |
+| --- | --- |
+| **getragen** | Hin- und Rückweg funktionieren. Der Suchlauf kann beginnen. |
+| **halb** | Die Vorgabe kam an, der Rückweg nicht. Der gefährlichere Fall — ein Suchlauf ohne verlässlichen Rückweg kann in einem Zustand enden, aus dem nur noch das Zurücksetzen des BIOS heraushilft. |
+| **nicht getragen** | Die Vorgabe kam nicht an. Weil sie in die sichere Richtung ging, liegt es nicht am Speicher. |
+
+### 3. Beginnen
 
 ```bash
 python ramtune.py start --ziel spiele
@@ -82,7 +131,7 @@ Misst zuerst die jetzige EXPO-Einstellung als Bezugspunkt. Ohne diese Messung
 wäre später kein Vergleich möglich. Danach kommt der erste Vorschlag: ein
 vorsichtiger, lauffähiger Startsatz für deinen Chiptyp.
 
-### 3. Die Runde, die sich wiederholt
+### 4. Die Runde, die sich wiederholt
 
 RamTune nennt die Felder, die sich ändern:
 
@@ -108,7 +157,7 @@ nächsten Schritt.
 
 Mit `python ramtune.py autostart` macht es das nach dem Anmelden von selbst.
 
-### 4. Abschluss
+### 5. Abschluss
 
 Wenn nichts mehr zu holen ist, schlägt RamTune die nächste Taktstufe vor
 (6000 → 6200 → 6400) und beginnt dort mit gelockerten Timings von vorn. Danach:
@@ -162,10 +211,25 @@ RamTune deckelt `tREFI` deshalb hart nach der gemessenen Modultemperatur — ohn
 HWiNFO-Protokoll bleibt es beim Ausgangswert 40000.
 
 **Stille Fehler.** Nach jedem Testabschnitt wird das Windows-Ereignisprotokoll
-auf korrigierte Hardwarefehler (WHEA-Logger 19 und verwandte) gelesen. Ein
-System kann eine Nacht lang jeden Stresstest bestehen und trotzdem instabil
-sein — der Prozessor bügelt die Fehler selbst aus und meldet sie nur dorthin.
-**Ein einziger solcher Fehler macht den Lauf ungültig**, egal was der Test sagt.
+auf korrigierte Hardwarefehler gelesen. Ein System kann eine Nacht lang jeden
+Stresstest bestehen und trotzdem instabil sein — der Prozessor bügelt die
+Fehler selbst aus und meldet sie nur dorthin. **Ein einziger speichernaher
+Fehler macht den Lauf ungültig**, egal was der Test sagt.
+
+Zwei Einschränkungen, die dazugehören:
+
+- **Nicht jeder WHEA-Eintrag kommt vom Speicher.** Ereignis 17 stammt meist von
+  PCI Express — Grafikkarte, NVMe-SSD, Netzwerkkarte. RamTune trennt die
+  Einträge nach Komponente und wertet reine PCIe-Fehler *nicht* gegen den
+  Speicher; sonst verwürfe eine zickige Steckkarte stabile Einstellungen.
+  Einträge ohne verwertbaren Text werden als *unklar* protokolliert statt
+  geraten.
+- **Ein leeres Protokoll beweist keine Stabilität.** Es beweist nur, dass
+  nichts aufgefallen ist. Der On-Die-ECC von DDR5 schützt die Zellen im
+  Baustein, nicht die Übertragung zum Speichercontroller — ohne echtes ECC
+  bleibt ein Teil der Fehler unbemerkt. Die Schlussrichtung gilt nur einseitig:
+  ein Fehler macht den Lauf ungültig, kein Fehler macht ihn nicht gültig.
+  RamTune formuliert das im Bericht ausdrücklich so.
 
 **Wenn nichts mehr geht.** Rechner ausschalten, zweimal beim Hochfahren
 abwürgen — dann setzt das Board das BIOS zurück. Danach:
@@ -177,16 +241,24 @@ python ramtune.py rettung
 nennt die letzte Einstellung, die nachweislich stabil war. Der Zustand wird vor
 jedem Test auf die Platte geschrieben und übersteht jeden Absturz.
 
-## Was realistisch dabei herauskommt
+## Was andere damit erreicht haben
 
-Für einen 9800X3D mit 2×32 GB:
+Die folgenden Zahlen sind **Erfahrungswerte aus der Gemeinde, keine Zusage für
+dein System.** Was bei dir herauskommt, hängt am Speichermodell, am
+Speichercontroller deines Prozessorexemplars, an der BIOS-Fassung und an der
+Kühlung — und lässt sich erst nach der Ausgangsmessung auf deinem Rechner
+sagen. Genau dafür misst RamTune zuerst EXPO: Alle späteren Angaben sind
+Vergleichswerte gegen deine eigene Ausgangslage, nicht gegen eine Tabelle.
+
+Für einen 9800X3D mit 2×32 GB berichtet die Gemeinde:
 
 - **1:1-Betrieb (UCLK = MCLK)** ist das Ziel. Realistisch 6000, mit gutem Kit
   6200–6400. 6400 im 1:1 ist bereits selten, 6600 Glückssache.
 - **Enge Timings bringen mehr als hohe Taktraten.** Die 96 MB Zwischenspeicher
   des X3D fangen Bandbreite ohnehin ab. Der Gewinn liegt bei den
   1%-Perzentilen, nicht beim Durchschnitts-FPS.
-- **Größenordnung:** EXPO etwa 68–75 ns, gut abgestimmt etwa 58–63 ns.
+- **Größenordnung:** EXPO etwa 68–75 ns, gut abgestimmt etwa 58–63 ns —
+  häufig berichtete Spannen, keine Zielvorgabe.
 - **Der 2:1-Modus** (DDR5-8000 und höher) ist auf einem X3D fürs Spielen meist
   ein Rückschritt, trotz der größeren Zahl.
 - Doppelrang-Module (2×32 GB) fordern den Speichercontroller mehr als 2×16 GB
@@ -213,6 +285,7 @@ ramtune/config.py     Sicherheitsgrenzen, Teststufen, Ablageorte
 ramtune/state.py      Zustand, der Neustarts und Abstürze übersteht
 ramtune/profiles.py   Wissensbasis: Speicherchips, Timings, BIOS-Feldnamen
 ramtune/plan.py       die Leiter: was als Nächstes probiert wird
+ramtune/machbarkeit.py  der Nachweis, dass ein Durchgang trägt
 ramtune/detect.py     Module, Bestückung, ZenTimings, Temperatur
 ramtune/stress.py     Stabilitätstests starten und auswerten
 ramtune/bench.py      Latenz, Bandbreite, Punktzahl

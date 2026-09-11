@@ -64,6 +64,20 @@ CHIPS = {
             "einen guten Teil des Rückstands wieder herein."
         ),
     },
+    "hynix_unbekannt": {
+        "name": "SK Hynix, Untertyp unbekannt (A- oder M-die)",
+        "guete": 3,
+        "cl_bei_6000": 32,
+        "cl_untergrenze": 28,
+        "rcd_bei_6000": 40,
+        "rcd_untergrenze": 36,
+        "trfc_ns": (175, 210),
+        "hinweis": (
+            "Hynix erkannt, aber nicht welcher Typ. A-die kann deutlich mehr als "
+            "M-die - bis das feststeht, wird nach der schwächeren Annahme gefahren. "
+            "Thaiphoon Burner klärt das in einer Minute."
+        ),
+    },
     "unbekannt": {
         "name": "Chip nicht erkannt",
         "guete": 2,
@@ -78,27 +92,34 @@ CHIPS = {
 
 
 def chip_erkennen(hersteller, teilenummer, dichte_gbit=None):
-    """Ordnet SPD-Angaben einem Chiptyp zu.
+    """Ordnet SPD-Angaben einem Chiptyp zu und sagt, wie sicher das ist.
 
-    Thaiphoon Burner liest den Chip direkt aus; ohne dieses Werkzeug bleibt nur
-    der Umweg über Hersteller und Teilenummer, der beim Hynix-Untertyp (A oder
-    M) oft nicht eindeutig ist. Im Zweifel wird die vorsichtigere Variante
-    gewählt - ein zu zahmer Startwert kostet eine Runde, ein zu scharfer kostet
-    einen Absturz.
+    Gibt (chip_id, sicherheit) zurück, mit sicherheit aus "sicher",
+    "vermutet" oder "geraten".
+
+    Warum die zweite Angabe nötig ist: Der Hersteller steht im SPD, der
+    Untertyp des Chips nicht. Selbst ZenTimings weist unbekannte Hynix-Dies
+    ausdrücklich als unbekannt aus, statt zu raten. Ein als "A-die" behandeltes
+    M-die bekäme Startwerte, die es nicht bootet - jede solche Fehlannahme
+    kostet eine Runde samt Neustart. Deshalb wird Unsicherheit hier
+    weitergereicht statt verschluckt, und startsatz() legt darauf eine
+    Sicherheitsmarge.
     """
     text = f"{hersteller or ''} {teilenummer or ''}".lower()
 
     if "hynix" in text or text.startswith("sk"):
         if "a-die" in text or "adie" in text:
-            return "hynix_a"
+            return "hynix_a", "sicher"
         if "m-die" in text or "mdie" in text:
-            return "hynix_m"
-        return "hynix_m"
+            return "hynix_m", "sicher"
+        # Hersteller steht fest, Untertyp nicht - das ist der Normalfall
+        # ohne Thaiphoon Burner.
+        return "hynix_unbekannt", "vermutet"
     if "samsung" in text:
-        return "samsung_b"
+        return "samsung_b", "vermutet"
     if "micron" in text or "crucial" in text:
-        return "micron_a"
-    return "unbekannt"
+        return "micron_a", "vermutet"
+    return "unbekannt", "geraten"
 
 
 # -------------------------------------------------------------------- Timings
@@ -249,20 +270,29 @@ def trfc_nanosekunden(takte, mclk_mts):
     return takte * 2000.0 / mclk_mts
 
 
-def startsatz(chip_id, mclk, dual_rank=True):
+# Aufschlag auf die Primärtimings, wenn der Chip nicht sicher bekannt ist.
+MARGE = {"sicher": 0, "vermutet": 2, "geraten": 4}
+
+
+def startsatz(chip_id, mclk, dual_rank=True, sicherheit="sicher"):
     """Erzeugt einen vorsichtigen, lauffähigen Startsatz für eine Geschwindigkeit.
 
     Bewusst nicht das Maximum: Der erste Satz soll booten und eine ehrliche
     Ausgangsmessung liefern. Das Feilen übernimmt danach die Leiter in plan.py.
+
+    Ist der Chiptyp nicht sicher bekannt, kommt ein Aufschlag obendrauf. Ein zu
+    zahmer Startwert kostet ein paar Runden, die die Leiter ohnehin abarbeitet -
+    ein zu scharfer kostet einen Fehlstart und damit mehr.
     """
     chip = CHIPS.get(chip_id, CHIPS["unbekannt"])
+    aufschlag = MARGE.get(sicherheit, 2)
 
     # Primärtimings skalieren grob mit der Geschwindigkeit.
     faktor = mclk / 6000.0
-    tcl = int(round(chip["cl_bei_6000"] * faktor))
+    tcl = int(round(chip["cl_bei_6000"] * faktor)) + aufschlag
     if tcl % 2:
         tcl += 1  # AM5 mag gerade tCL-Werte
-    trcd = int(round(chip["rcd_bei_6000"] * faktor))
+    trcd = int(round(chip["rcd_bei_6000"] * faktor)) + aufschlag
     trp = trcd
     tras = max(28, int(round(30 * faktor)))
     trc = tras + trp

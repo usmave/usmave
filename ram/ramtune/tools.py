@@ -53,6 +53,15 @@ WERKZEUGE = {
         "quelle": "https://github.com/irusanov/ZenTimings",
         "kosten": "kostenlos",
     },
+    "ryzenmaster": {
+        "name": "AMD Ryzen Master",
+        "datei": "AMD Ryzen Master.exe",
+        "pflicht": False,
+        "zweck": ("Kann auf AM5 Speichereinstellungen vorgeben. Für ein Programm "
+                  "nicht ansteuerbar - das AMD-SDK liest nur."),
+        "quelle": "https://www.amd.com/en/products/software/ryzen-master.html",
+        "kosten": "kostenlos",
+    },
     "hwinfo": {
         "name": "HWiNFO64",
         "datei": "HWiNFO64.exe",

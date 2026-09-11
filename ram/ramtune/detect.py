@@ -257,7 +257,7 @@ def hardware_erfassen(zentimings_export=None, hwinfo_csv=None):
 
     hersteller = module[0]["hersteller"] if module else ""
     teilenummer = module[0]["teilenummer"] if module else ""
-    chip = profiles.chip_erkennen(hersteller, teilenummer)
+    chip, sicherheit = profiles.chip_erkennen(hersteller, teilenummer)
 
     aufnahme = {
         "prozessor": system.prozessorname(),
@@ -265,7 +265,9 @@ def hardware_erfassen(zentimings_export=None, hwinfo_csv=None):
         "bestueckung": bestueckung,
         "chip": chip,
         "chip_name": profiles.CHIPS[chip]["name"],
-        "chip_sicher": chip != "unbekannt",
+        "chip_sicherheit": sicherheit,
+        "chip_sicher": sicherheit == "sicher",
+        "chip_hinweis": profiles.CHIPS[chip]["hinweis"],
         "ist_zustand": None,
         "dram_temperatur": None,
     }
