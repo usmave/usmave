@@ -5,8 +5,8 @@
 
 const CONFIG = {
   // Dieselbe Adresse wie im Kurzbefehl, aber ohne „benutzer:passwort@“:
-  //   nur zu Hause:   http://192.168.178.1:49000/upnp/control/hosts
-  //   auch unterwegs: https://xxxxxxxxxxxxxxxx.myfritz.net:12345/tr064/upnp/control/hosts
+  //   zu Hause oder unterwegs per VPN der FRITZ!Box: http://192.168.178.1:49000/upnp/control/hosts
+  //   unterwegs ohne VPN: https://xxxxxxxxxxxxxxxx.myfritz.net:12345/tr064/upnp/control/hosts
   url: "http://192.168.178.1:49000/upnp/control/hosts",
   user: "wol",
   mac: "AA:BB:CC:DD:EE:FF",
@@ -74,22 +74,30 @@ function header(headers, name) {
   return key ? headers[key] : undefined;
 }
 
-async function post(authorization) {
-  const req = new Request(CONFIG.url);
-  req.method = "POST";
-  req.timeoutInterval = 15;
-  req.headers = {
-    "Content-Type": 'text/xml; charset="utf-8"',
-    SOAPACTION: `${SERVICE}#${ACTION}`,
-    ...(authorization ? { Authorization: authorization } : {}),
-  };
-  req.body =
-    '<?xml version="1.0" encoding="utf-8"?>' +
-    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">' +
-    `<s:Body><u:${ACTION} xmlns:u="${SERVICE}"><NewMACAddress>${CONFIG.mac}</NewMACAddress></u:${ACTION}></s:Body>` +
-    "</s:Envelope>";
-  const text = await req.loadString();
-  return { status: req.response.statusCode, headers: req.response.headers, text };
+// Mehrere Versuche, weil ein gerade gestartetes VPN oft noch ein, zwei Sekunden braucht.
+async function post(authorization, tries = 4) {
+  for (let i = 1; ; i++) {
+    const req = new Request(CONFIG.url);
+    req.method = "POST";
+    req.timeoutInterval = 5;
+    req.headers = {
+      "Content-Type": 'text/xml; charset="utf-8"',
+      SOAPACTION: `${SERVICE}#${ACTION}`,
+      ...(authorization ? { Authorization: authorization } : {}),
+    };
+    req.body =
+      '<?xml version="1.0" encoding="utf-8"?>' +
+      '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">' +
+      `<s:Body><u:${ACTION} xmlns:u="${SERVICE}"><NewMACAddress>${CONFIG.mac}</NewMACAddress></u:${ACTION}></s:Body>` +
+      "</s:Envelope>";
+    try {
+      const text = await req.loadString();
+      return { status: req.response.statusCode, headers: req.response.headers, text };
+    } catch (e) {
+      if (i >= tries) throw e;
+      await new Promise((resolve) => Timer.schedule(1500, false, resolve));
+    }
+  }
 }
 
 async function password() {
@@ -133,7 +141,9 @@ async function main() {
       msg = `Fehler ${res.status}${fault ? ": " + fault : ""}`;
     }
   } catch (e) {
-    msg = `FRITZ!Box nicht erreichbar: ${e.message || e}`;
+    msg = e.message === "Abgebrochen"
+      ? "Abgebrochen."
+      : `FRITZ!Box nicht erreichbar. Unterwegs: VPN verbunden? (${e.message || e})`;
   }
   Script.setShortcutOutput(msg);
   if (config.runsInApp) {
