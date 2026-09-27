@@ -4,15 +4,17 @@
 // Das Passwort liegt im iOS-Schlüsselbund, nicht im Skript.
 
 const CONFIG = {
-  // MyFRITZ!-Adresse inkl. HTTPS-Port aus Internet → MyFRITZ!-Konto bzw. Freigaben → FRITZ!Box-Dienste
-  host: "https://xxxxxxxxxxxxxxxx.myfritz.net:12345",
+  // Dieselbe Adresse wie im Kurzbefehl, aber ohne „benutzer:passwort@“:
+  //   nur zu Hause:   http://192.168.178.1:49000/upnp/control/hosts
+  //   auch unterwegs: https://xxxxxxxxxxxxxxxx.myfritz.net:12345/tr064/upnp/control/hosts
+  url: "http://192.168.178.1:49000/upnp/control/hosts",
   user: "wol",
   mac: "AA:BB:CC:DD:EE:FF",
 };
 
 const SERVICE = "urn:dslforum-org:service:Hosts:1";
 const ACTION = "X_AVM-DE_WakeOnLANByMACAddress";
-const PATH = "/tr064/upnp/control/hosts";
+const PATH = CONFIG.url.replace(/^https?:\/\/[^/]+/, "") || "/";
 
 function md5(str) {
   const bytes = unescape(encodeURIComponent(str));
@@ -73,7 +75,7 @@ function header(headers, name) {
 }
 
 async function post(authorization) {
-  const req = new Request(CONFIG.host + PATH);
+  const req = new Request(CONFIG.url);
   req.method = "POST";
   req.timeoutInterval = 15;
   req.headers = {
