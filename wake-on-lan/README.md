@@ -89,8 +89,8 @@ selbst erledigt:
 3. Skript z. B. `PC an` nennen und einmal in Scriptable starten. Es fragt einmalig nach
    dem Passwort und legt es im iOS-Schlüsselbund ab. Fragt iOS, ob Scriptable auf
    Geräte im lokalen Netzwerk zugreifen darf: erlauben.
-4. Im Kurzbefehl stattdessen nur die Aktion **Scriptable → Script ausführen** →
-   `PC an` nehmen (Häkchen *Run In App* aus). Die Rückmeldung kommt als Ergebnis des
+4. Im Kurzbefehl stattdessen nur die Scriptable-Aktion **Run Script** mit dem Skript
+   `PC an` nehmen (*Run In App* aus). Die Rückmeldung kommt als Ergebnis des
    Skripts und lässt sich mit **Mitteilung anzeigen** ausgeben.
 
 Wird das Passwort abgelehnt, löscht das Skript es wieder und fragt beim nächsten Start neu.
