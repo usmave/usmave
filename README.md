@@ -157,3 +157,8 @@ Prüft den kompletten Ablauf: Plan anlegen, Tagesrotation, Training protokollier
 (auch L/R), Vorschlagsübernahme, Ersatzübung (auch mitten im Satz), Beenden, Verlauf
 mit Graph und Bestwert, umgekehrte Wertung beim Unterstützungsgewicht, Übung
 ersetzen/archivieren/umbenennen, Export und Reload.
+
+## Außerdem im Repo
+
+`wake-on-lan/` — Anleitung für einen iPhone-Kurzbefehl, der einen PC über die
+FRITZ!Box per Wake-on-LAN weckt (hat mit der App nichts zu tun).
