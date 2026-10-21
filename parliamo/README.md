@@ -2,7 +2,7 @@
 
 Eine Web-App fürs iPhone zum Italienischlernen, ohne Konto, ohne Server und ohne KI im Hintergrund. Sie läuft offline, der Lernstand bleibt auf dem Gerät.
 
-**Adresse:** https://usmave.github.io/parliamo/
+**Adresse:** https://usmave.github.io/usmave/parliamo/
 
 ## Auf ein iPhone bringen
 
