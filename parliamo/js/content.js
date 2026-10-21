@@ -12,7 +12,7 @@ export const GROUPS = [
   { id: 'leute', title: 'Unter Leuten', sub: 'Freunde, Smalltalk, Gefühle' },
   { id: 'alltag', title: 'Alltag & Zuhause', sub: 'Wohnen, Arbeit, Freizeit' },
   { id: 'gesundheit', title: 'Gesundheit & Notfälle', sub: 'Apotheke, Arzt, Hilfe' },
-  { id: 'basis', title: 'Grundwortschatz', sub: 'Verben, Adjektive, kleine Wörter' },
+  { id: 'basis', title: 'Grundwortschatz', sub: 'Verben, Zahlen, Adjektive, kleine Wörter' },
 ];
 
 export const LEVELS = ['A2', 'B1', 'B2'];

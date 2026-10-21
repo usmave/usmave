@@ -188,7 +188,7 @@ export function renderHome(view) {
 /* ================================================================ Bereiche */
 
 export function renderAreas(view) {
-  view.append(header('Lebensbereiche', { sub: 'Jede Situation hat Wörter, Sätze, „Gut zu wissen“, einen Dialog, ein Rollenspiel und ein Quiz.' }));
+  view.append(header('Lebensbereiche', { sub: 'Jede Situation hat Wörter, Sätze, „Gut zu wissen“ und ein Quiz – dazu meist einen Dialog und ein Rollenspiel.' }));
   const search = h('input.search', { type: 'search', placeholder: 'Wort suchen – deutsch oder italienisch', autocomplete: 'off', autocorrect: 'off', spellcheck: 'false' });
   const results = h('div.search-results');
   const groups = h('div.groups');

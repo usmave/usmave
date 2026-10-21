@@ -17,7 +17,7 @@ Wichtig: Was man im Safari-Tab lernt und was in der installierten App, sind auf 
 
 ## Was drin ist
 
-- **Lebensbereiche** (Unterwegs, Essen & Trinken, Erledigungen, Unter Leuten, Alltag, Gesundheit, Grundwortschatz). Jeder Bereich hat Wörter mit Beispielsatz, typische Sätze mit „Warum so?“, „Gut zu wissen“, einen Dialog zum Hören, ein Rollenspiel zum Sprechen und ein eigenes Quiz.
+- **Lebensbereiche** (Unterwegs, Essen & Trinken, Erledigungen, Unter Leuten, Alltag, Gesundheit, Grundwortschatz). Jeder Bereich hat Wörter mit Beispielsatz, typische Sätze mit „Warum so?“, „Gut zu wissen“ und ein eigenes Quiz; die Situationsbereiche zusätzlich einen Dialog zum Hören und ein Rollenspiel zum Sprechen. Insgesamt 43 Bereiche mit rund 2.400 Wörtern und Sätzen.
 - **Lernkurve:** Wiederholung nach der Vergessenskurve (vereinfachtes SM-2), vier Stufen je Bereich, Gesamtkurve auf der Startseite.
 - **Heute lernen** in 5, 15 oder 30 Minuten: Wiederholungen, neue Einträge aus dem Lernpfad, dazu wechselnd Dialog, Rollenspiel, Blitzrunde, Zahlen, Diktat, Nachsprechen oder Aussprache.
 - **Il Milione:** 15 Fragen bis zur Million mit Sicherheitsstufen bei 500 € und 16.000 € und drei Jokern (50:50, Publikum, Telefon). Dazu eine 60-Sekunden-Blitzrunde.

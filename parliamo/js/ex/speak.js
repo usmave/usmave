@@ -13,7 +13,7 @@ import { summaryStep } from './vocab.js';
 const G = (t) => g(t, S().profile.sex);
 
 function partnerBubble(text, de, { auto = true } = {}) {
-  const deEl = h('p.bub-de.hidden', de || '');
+  const deEl = h('p.bub-de.hidden', de ? G(de) : '');
   const tr = h('button.chip.tiny', { type: 'button' }, 'Übersetzung');
   tr.addEventListener('click', () => deEl.classList.toggle('hidden'));
   const b = h(
@@ -86,7 +86,7 @@ export function roleStep(role) {
           'div.model',
           h('div.model-head', 'So könntest du es sagen'),
           h('p.model-it', model, ' ', spk(model)),
-          st.mde ? h('p.small.muted', st.mde) : null,
+          st.mde ? h('p.small.muted', G(st.mde)) : null,
           st.alts.length ? h('p.small', 'Auch möglich: ', h('i', G(st.alts[0]))) : null,
         );
         const heard = !r.gaveUp && r.text ? h('p.small', r.typed ? 'Deine Antwort: „' : 'Verstanden: „', h('i', r.text), '“') : null;
