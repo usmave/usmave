@@ -298,10 +298,10 @@ public partial class MainWindow : Window
         if (MessageBox.Show(
                 $"Neural Rendering (fotorealistische Gesichter & Beleuchtung) in „{game.Name}“ installieren?\n\n" +
                 $"Methode: {route}.\n" +
-                "Es werden Community-Komponenten von GitHub geladen (experimentell, nicht von NVIDIA!). " +
+                "Es werden Community-Komponenten von GitHub geladen (experimentell, nicht von NVIDIA!) und " +
+                "ReShade (Add-on-Build) wird bei Bedarf automatisch von reshade.me mitinstalliert. " +
                 "Die nvngx_dlssnr.dll kommt aus deiner DLL-Bibliothek – für RTX 20–40 brauchst du den " +
-                "ShortFuse-Kompatibilitäts-Build, für RTX 50 das Original. Nur für Singleplayer-Spiele!\n\n" +
-                "ReShade mit Add-on-Unterstützung muss ggf. einmalig über reshade.me installiert werden.",
+                "ShortFuse-Kompatibilitäts-Build, für RTX 50 das Original. Nur für Singleplayer-Spiele!",
                 "Neural Rendering installieren", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
 

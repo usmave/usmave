@@ -25,7 +25,17 @@ public sealed class NrSources
 
     /// <summary>RenoDX-DLSS5-Addon (Pfad A: Spiele mit nativem DLSS).</summary>
     [JsonPropertyName("addonRepo")] public string AddonRepo { get; set; } = "RankFTW/rhi-repo";
-    [JsonPropertyName("addonAssetPrefix")] public string AddonAssetPrefix { get; set; } = "renodx-dlss5";
+
+    /// <summary>
+    /// Release-Tag-Präfixe für das Addon, in Vorzugsreihenfolge. Das Repo
+    /// taggt pro Komponente (renodx-dlss-SF-*, dlssnr-*, …), es gibt kein
+    /// aussagekräftiges „Latest"-Release.
+    /// </summary>
+    [JsonPropertyName("addonTagPrefixes")] public List<string> AddonTagPrefixes { get; set; } =
+        new() { "renodx-dlss5", "renodx-dlss" };
+
+    /// <summary>Seite, von der der offizielle ReShade-Installer geladen wird.</summary>
+    [JsonPropertyName("reshadeHome")] public string ReshadeHome { get; set; } = "https://reshade.me";
 }
 
 /// <summary>Einstellungen für die Neural-Rendering-Installation.</summary>
@@ -95,18 +105,20 @@ public sealed class NeuralRenderingInstaller
                 progress?.Report($"nvngx_dlssnr.dll {nr.Version} bereitgestellt.");
             }
 
-            // 2) Komponenten laden.
+            // 2) ReShade (mit Add-on-Unterstützung) automatisch bereitstellen.
+            var reshadeOk = await EnsureReShadeAsync(targetDir, sources, installedFiles, progress, ct);
+
+            // 3) Komponenten laden.
             if (routeA)
             {
-                progress?.Report("Pfad A (natives DLSS): lade RenoDX-DLSS5-Addon …");
-                await DownloadLatestAssetAsync(sources.AddonRepo,
-                    name => name.StartsWith(sources.AddonAssetPrefix, StringComparison.OrdinalIgnoreCase),
+                progress?.Report("Pfad A (natives DLSS): lade RenoDX-DLSS-Addon …");
+                await DownloadFromReleasesAsync(sources.AddonRepo, sources.AddonTagPrefixes,
                     targetDir, installedFiles, progress, ct);
             }
             else
             {
                 progress?.Report("Pfad B (kein natives DLSS): lade DLSS5-Feeder …");
-                await DownloadLatestAssetAsync(sources.FeederRepo, _ => true,
+                await DownloadFromReleasesAsync(sources.FeederRepo, new List<string> { "" },
                     targetDir, installedFiles, progress, ct);
 
                 var shadersDir = Path.Combine(targetDir, "reshade-shaders", "Shaders");
@@ -121,18 +133,18 @@ public sealed class NeuralRenderingInstaller
                     shadersDir, installedFiles, ct);
             }
 
-            // 3) Konfiguration schreiben.
+            // 4) Konfiguration schreiben.
             foreach (var message in ApplyConfigs(targetDir, routeA, options))
                 progress?.Report(message);
 
-            // 4) Zustand für die Deinstallation festhalten.
+            // 5) Zustand für die Deinstallation festhalten.
             File.WriteAllText(Path.Combine(targetDir, StateFileName),
                 JsonSerializer.Serialize(installedFiles, new JsonSerializerOptions { WriteIndented = true }));
 
-            var reshadeHint = HasReShade(targetDir)
+            var reshadeHint = reshadeOk
                 ? string.Empty
-                : " WICHTIG: ReShade fehlt noch – einmalig den offiziellen Installer von reshade.me ausführen " +
-                  "(Spiel auswählen, Haken bei „Add-on support“ setzen), dann greift die Installation.";
+                : " WICHTIG: ReShade konnte nicht automatisch installiert werden – einmalig den offiziellen " +
+                  "Installer von reshade.me ausführen (Spiel auswählen, Haken bei „Add-on support“ setzen).";
             var activateHint = routeA
                 ? " Aktivierung: im Spiel das ReShade-Overlay (Pos1) öffnen → Add-ons → RenoDX.DLSS5."
                 : " Aktivierung: im Spiel Pos1 (ReShade) → Add-on „DLSS 5 Feed“; Lumenite_Kernel muss über DLSS5_Feed stehen.";
@@ -207,6 +219,12 @@ public sealed class NeuralRenderingInstaller
                 reShadeIni.Set("GENERAL", "PreprocessorDefinitions", defs.TrimEnd(',') + "," + token);
             messages.Add("ReShade.ini: DLSS5_MV_PROVIDER gesetzt.");
 
+            // Shader-Pfade nur setzen, wenn der Nutzer keine eigenen hat.
+            if (string.IsNullOrWhiteSpace(reShadeIni.Get("GENERAL", "EffectSearchPaths")))
+                reShadeIni.Set("GENERAL", "EffectSearchPaths", @".\reshade-shaders\Shaders");
+            if (string.IsNullOrWhiteSpace(reShadeIni.Get("GENERAL", "TextureSearchPaths")))
+                reShadeIni.Set("GENERAL", "TextureSearchPaths", @".\reshade-shaders\Textures");
+
             // Feed-Konfiguration (einfaches key=value-Format).
             var cfgPath = Path.Combine(targetDir, "dlss5-feed.cfg");
             SetPlainKey(cfgPath, "work_resolution", scale);
@@ -260,34 +278,75 @@ public sealed class NeuralRenderingInstaller
         File.WriteAllLines(path, lines);
     }
 
+    // ----- Release-Auswahl (statisch, damit unter Linux testbar) -----
+
+    /// <summary>
+    /// Wählt aus einer Tag-Liste (neueste zuerst) das erste Release, dessen
+    /// Tag mit einem der Präfixe beginnt – Präfixe in Vorzugsreihenfolge.
+    /// Ein leeres Präfix passt auf alles (= neuestes Release).
+    /// </summary>
+    public static int PickReleaseIndex(IReadOnlyList<string> tags, IReadOnlyList<string> prefixes)
+    {
+        foreach (var prefix in prefixes)
+        {
+            for (var i = 0; i < tags.Count; i++)
+            {
+                if (prefix.Length == 0 || tags[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    return i;
+            }
+        }
+        return -1;
+    }
+
+    /// <summary>Bevorzugt .addon64, dann Archive, sonst das erste Asset (Hashes/Textdateien zuletzt).</summary>
+    public static string? PickAssetName(IReadOnlyList<string> names)
+    {
+        return names.FirstOrDefault(n => n.EndsWith(".addon64", StringComparison.OrdinalIgnoreCase))
+            ?? names.FirstOrDefault(n => n.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+                                         n.EndsWith(".7z", StringComparison.OrdinalIgnoreCase))
+            ?? names.FirstOrDefault(n => !n.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) &&
+                                         !n.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase) &&
+                                         !n.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+            ?? names.FirstOrDefault();
+    }
+
     // ----- Downloads -----
 
-    private async Task DownloadLatestAssetAsync(
-        string repo, Func<string, bool> assetMatch, string targetDir,
+    private async Task DownloadFromReleasesAsync(
+        string repo, IReadOnlyList<string> tagPrefixes, string targetDir,
         List<string> installedFiles, IProgress<string>? progress, CancellationToken ct)
     {
-        var json = await _http.GetStringAsync($"https://api.github.com/repos/{repo}/releases/latest", ct);
+        var json = await _http.GetStringAsync($"https://api.github.com/repos/{repo}/releases?per_page=100", ct);
         using var doc = JsonDocument.Parse(json);
+        var releases = doc.RootElement.EnumerateArray().ToList();
 
-        string? url = null, name = null;
-        foreach (var asset in doc.RootElement.GetProperty("assets").EnumerateArray())
-        {
-            var assetName = asset.GetProperty("name").GetString() ?? "";
-            if (!assetMatch(assetName)) continue;
-            url = asset.GetProperty("browser_download_url").GetString();
-            name = assetName;
-            break;
-        }
-        if (url == null || name == null)
-            throw new InvalidOperationException($"Kein passendes Release-Asset in {repo} gefunden.");
+        var tags = releases
+            .Select(r => r.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "")
+            .ToList();
+        var idx = PickReleaseIndex(tags, tagPrefixes);
+        if (idx < 0)
+            throw new InvalidOperationException(
+                $"Kein Release mit Tag-Präfix [{string.Join(", ", tagPrefixes)}] in {repo} gefunden. " +
+                $"Vorhandene Tags: {string.Join(", ", tags.Take(6))} … " +
+                "Ggf. die Präfixe im Manifest (neuralRendering.addonTagPrefixes) anpassen.");
 
-        progress?.Report($"Lade {name} …");
-        var tempFile = Path.Combine(Path.GetTempPath(), "NeuralSwap", Guid.NewGuid().ToString("N") + "_" + name);
+        var assets = releases[idx].GetProperty("assets").EnumerateArray()
+            .Select(a => (Name: a.GetProperty("name").GetString() ?? "",
+                          Url: a.GetProperty("browser_download_url").GetString() ?? ""))
+            .Where(a => a.Name.Length > 0 && a.Url.Length > 0)
+            .ToList();
+        var pick = PickAssetName(assets.Select(a => a.Name).ToList());
+        var asset = assets.FirstOrDefault(a => a.Name == pick);
+        if (pick == null || asset.Url.Length == 0)
+            throw new InvalidOperationException($"Release {tags[idx]} in {repo} hat keine ladbaren Assets.");
+
+        progress?.Report($"Lade {asset.Name} ({tags[idx]}) …");
+        var tempFile = Path.Combine(Path.GetTempPath(), "NeuralSwap", Guid.NewGuid().ToString("N") + "_" + asset.Name);
         Directory.CreateDirectory(Path.GetDirectoryName(tempFile)!);
-        await DownloadToFileAsync(url, tempFile, ct);
+        await DownloadToFileAsync(asset.Url, tempFile, ct);
 
-        if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
-            name.EndsWith(".7z", StringComparison.OrdinalIgnoreCase))
+        if (asset.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+            asset.Name.EndsWith(".7z", StringComparison.OrdinalIgnoreCase))
         {
             using var archive = ArchiveFactory.OpenArchive(tempFile, new SharpCompress.Readers.ReaderOptions());
             foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
@@ -298,9 +357,91 @@ public sealed class NeuralRenderingInstaller
         }
         else
         {
-            var dest = Path.Combine(targetDir, name);
+            var dest = Path.Combine(targetDir, asset.Name);
             File.Copy(tempFile, dest, overwrite: true);
             installedFiles.Add(dest);
+        }
+    }
+
+    /// <summary>
+    /// Installiert ReShade automatisch: Der offizielle Setup-Installer ist
+    /// zugleich ein Zip-Archiv (laut ReShade-Entwickler mit jedem
+    /// Entpacker zu öffnen) – wir ziehen die ReShade64.dll heraus und legen
+    /// sie als dxgi.dll ins Spiel. Läuft dort schon OptiScaler auf
+    /// dxgi.dll, weicht es nach Community-Konvention auf winmm.dll aus.
+    /// </summary>
+    private async Task<bool> EnsureReShadeAsync(
+        string targetDir, NrSources sources, List<string> installedFiles,
+        IProgress<string>? progress, CancellationToken ct)
+    {
+        try
+        {
+            if (HasReShade(targetDir))
+            {
+                progress?.Report("ReShade ist bereits vorhanden.");
+                return true;
+            }
+
+            var dxgi = Path.Combine(targetDir, "dxgi.dll");
+            if (File.Exists(dxgi) && !File.Exists(Path.Combine(targetDir, "OptiScaler.dll")))
+            {
+                progress?.Report("dxgi.dll existiert bereits (unbekannter Loader) – ReShade-Installation übersprungen.");
+                return true;
+            }
+
+            // Download-Link von der offiziellen Seite ermitteln.
+            var home = await _http.GetStringAsync(sources.ReshadeHome, ct);
+            var match = System.Text.RegularExpressions.Regex.Match(home, @"ReShade_Setup_[0-9][0-9.]*_Addon\.exe");
+            if (!match.Success)
+            {
+                progress?.Report("Konnte den ReShade-Installer-Link nicht ermitteln.");
+                return false;
+            }
+
+            progress?.Report($"Lade {match.Value} von {sources.ReshadeHome} …");
+            var tempFile = Path.Combine(Path.GetTempPath(), "NeuralSwap", Guid.NewGuid().ToString("N") + "_" + match.Value);
+            Directory.CreateDirectory(Path.GetDirectoryName(tempFile)!);
+            await DownloadToFileAsync($"{sources.ReshadeHome.TrimEnd('/')}/downloads/{match.Value}", tempFile, ct);
+
+            // Setup-Exe als Archiv öffnen und die 64-Bit-DLL herausziehen.
+            string? extracted = null;
+            using (var archive = ArchiveFactory.OpenArchive(tempFile, new SharpCompress.Readers.ReaderOptions()))
+            {
+                var entry = archive.Entries.FirstOrDefault(e =>
+                    !e.IsDirectory &&
+                    Path.GetFileName(e.Key ?? "").Equals("ReShade64.dll", StringComparison.OrdinalIgnoreCase));
+                if (entry != null)
+                {
+                    extracted = Path.Combine(Path.GetDirectoryName(tempFile)!, "ReShade64.dll");
+                    using var entryStream = entry.OpenEntryStream();
+                    using var file = File.Create(extracted);
+                    entryStream.CopyTo(file);
+                }
+            }
+            if (extracted == null)
+            {
+                progress?.Report("ReShade64.dll nicht im Installer gefunden – bitte manuell installieren.");
+                return false;
+            }
+
+            // OptiScaler belegt dxgi.dll? Dann auf winmm.dll ausweichen.
+            if (File.Exists(dxgi) && File.Exists(Path.Combine(targetDir, "OptiScaler.dll")))
+            {
+                File.Copy(dxgi, Path.Combine(targetDir, "winmm.dll"), overwrite: true);
+                File.Delete(dxgi);
+                progress?.Report("OptiScaler auf winmm.dll verschoben (dxgi.dll geht an ReShade).");
+            }
+
+            File.Copy(extracted, dxgi, overwrite: true);
+            installedFiles.Add(dxgi);
+            progress?.Report("ReShade (Add-on-Build) als dxgi.dll installiert.");
+            return true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
+                                       or UnauthorizedAccessException or InvalidOperationException)
+        {
+            progress?.Report($"ReShade-Autoinstallation fehlgeschlagen: {ex.Message}");
+            return false;
         }
     }
 

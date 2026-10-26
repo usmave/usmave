@@ -50,6 +50,7 @@
     "shadersRepo": "crosire/reshade-shaders",
     "shadersBranch": "slim",
     "addonRepo": "RankFTW/rhi-repo",
-    "addonAssetPrefix": "renodx-dlss5"
+    "addonTagPrefixes": ["renodx-dlss5", "renodx-dlss"],
+    "reshadeHome": "https://reshade.me"
   }
 }

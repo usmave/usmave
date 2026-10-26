@@ -87,6 +87,53 @@ public class NeuralRenderingConfigTests : IDisposable
     }
 
     [Fact]
+    public void PickReleaseIndexPrefersFirstPrefixAcrossTags()
+    {
+        // Reale Tag-Struktur des rhi-repo (neueste zuerst): kein renodx-dlss5-Tag,
+        // aber renodx-dlss-SF-* → zweites Präfix muss greifen.
+        var tags = new[]
+        {
+            "streamline-2.14.16.0-v2",
+            "renodx-dlss-SF-26.1016.1304",
+            "dlssnr-310.9.16",
+            "renodx-dlss-SF-26.1003.2350",
+        };
+        var prefixes = new[] { "renodx-dlss5", "renodx-dlss" };
+
+        Assert.Equal(1, NeuralRenderingInstaller.PickReleaseIndex(tags, prefixes));
+    }
+
+    [Fact]
+    public void PickReleaseIndexEmptyPrefixTakesNewest()
+    {
+        Assert.Equal(0, NeuralRenderingInstaller.PickReleaseIndex(new[] { "v2.1", "v2.0" }, new[] { "" }));
+        Assert.Equal(-1, NeuralRenderingInstaller.PickReleaseIndex(new[] { "v2.1" }, new[] { "foo" }));
+    }
+
+    [Fact]
+    public void PickAssetNamePrefersAddonOverHashes()
+    {
+        var names = new[] { "checksums.sha256", "readme.txt", "renodx-dlss.addon64" };
+        Assert.Equal("renodx-dlss.addon64", NeuralRenderingInstaller.PickAssetName(names));
+
+        Assert.Equal("feeder.zip", NeuralRenderingInstaller.PickAssetName(new[] { "notes.md", "feeder.zip" }));
+        Assert.Equal("some.dll", NeuralRenderingInstaller.PickAssetName(new[] { "info.txt", "some.dll" }));
+    }
+
+    [Fact]
+    public void RouteBSetsShaderSearchPathsOnlyWhenMissing()
+    {
+        File.WriteAllLines(Path.Combine(_root, "ReShade.ini"),
+            new[] { "[GENERAL]", @"EffectSearchPaths=D:\MeineShader" });
+
+        NeuralRenderingInstaller.ApplyConfigs(_root, routeA: false, new NrOptions());
+
+        var ini = IniFile.Load(Path.Combine(_root, "ReShade.ini"));
+        Assert.Equal(@"D:\MeineShader", ini.Get("GENERAL", "EffectSearchPaths")); // nicht überschrieben
+        Assert.Equal(@".\reshade-shaders\Textures", ini.Get("GENERAL", "TextureSearchPaths"));
+    }
+
+    [Fact]
     public void ManifestParsesNeuralRenderingSources()
     {
         var manifest = VersionManifest.Parse("""
