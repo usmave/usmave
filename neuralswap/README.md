@@ -21,6 +21,11 @@ OptiScaler-Installation für Spiele ohne native DLSS-Unterstützung.
 - **OptiScaler-Installation**: Lädt das neueste
   [OptiScaler](https://github.com/optiscaler/OptiScaler)-Release von GitHub
   und installiert es in den Spielordner – für Spiele ohne natives DLSS.
+- **Stärke &amp; Schärfe**: Pro Spiel lässt sich die erzwungene Render-Stärke
+  (DLAA, Qualität 1,5×, Ausgewogen 1,7×, Performance 2,0×,
+  Ultra Performance 3,0×) und die Nachschärfung (0–100 %) setzen – über die
+  `OptiScaler.ini` (Sektionen `QualityOverrides`/`Sharpness`) bzw. die
+  `dlsstweaks.ini` (`DLSSQualityLevels`/`ForceDLAA`).
 - **Versions-Manifest**: `manifest/dll-manifest.json` beschreibt die aktuell
   neuesten DLL-Versionen. Die App kann es auch von einer URL laden
   (Einstellung `manifestUrl`), sodass neue DLSS-Versionen ohne App-Update
@@ -55,6 +60,22 @@ er hängt die fertige `NeuralSwap.exe` als Artefakt `NeuralSwap-win-x64` an.
 Die App fordert Administratorrechte an, weil Spiele unter
 `C:\Program Files` liegen und die DLLs dort sonst nicht getauscht werden
 können.
+
+## Die Mod-Methoden im Überblick
+
+| Methode | Wofür | In der App |
+|---|---|---|
+| **DLL-Swap** | Spiele mit nativem DLSS: neue `nvngx_*.dll` einsetzen | „Dieses Spiel aktualisieren" / One-Click |
+| **Preset-Override** | Neues Neural-Modell aktivieren (Preset B bzw. K) | „Preset erzwingen" (OptiScaler-/DLSSTweaks-Ini) |
+| **OptiScaler-Injektion** | Spiele ohne DLSS, FSR/XeSS→DLSS-Bridge, Basis der AMD-Mods | „OptiScaler installieren" |
+| **Stärke/Schärfe** | Interne Auflösung und Nachschärfung erzwingen | „Bild-Einstellungen anwenden" |
+| ReShade/RenoDX-Kombos | HDR/Farb-Mods zusätzlich zu DLSS | nicht automatisiert (pro Spiel zu verschieden) |
+
+**Aktivierung im Spiel:** Nach dem DLL-Swap einfach im Grafikmenü des Spiels
+DLSS auswählen – die neue DLL lädt automatisch. Bei OptiScaler öffnet die
+**Einfg-Taste** im Spiel ein Overlay-Menü, in dem sich Upscaler, Stärke,
+Schärfe und Frame Generation live umstellen lassen; die App setzt dieselben
+Werte vorab in der `OptiScaler.ini`.
 
 ## Wichtige Hinweise
 

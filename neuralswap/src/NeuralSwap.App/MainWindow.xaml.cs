@@ -30,6 +30,9 @@ public partial class MainWindow : Window
         InitializeComponent();
         _oneClick = new OneClickService(_library, _manifests);
 
+        QualityCombo.ItemsSource = QualityOptions.Select(o => o.Label).ToList();
+        QualityCombo.SelectedIndex = 0;
+
         PresetCombo.ItemsSource = PresetForcer.KnownPresets;
         PresetCombo.SelectedItem = PresetForcer.KnownPresets.Contains(_settings.PreferredPreset)
             ? _settings.PreferredPreset : "B";
@@ -43,6 +46,16 @@ public partial class MainWindow : Window
 
     private sealed record GameRow(Game Game, string Name, string Subtitle);
     private sealed record DllRow(string KindName, string Version, string Status);
+
+    private static readonly (string Label, QualityMode Mode)[] QualityOptions =
+    {
+        ("Standard (Spiel entscheidet)", QualityMode.GameDefault),
+        ("DLAA (native Auflösung)", QualityMode.Dlaa),
+        ("Qualität (Faktor 1,5)", QualityMode.Quality),
+        ("Ausgewogen (Faktor 1,7)", QualityMode.Balanced),
+        ("Performance (Faktor 2,0)", QualityMode.Performance),
+        ("Ultra Performance (Faktor 3,0)", QualityMode.UltraPerformance),
+    };
 
     // ----- Protokoll -----
 
@@ -65,7 +78,8 @@ public partial class MainWindow : Window
     {
         _busy = busy;
         foreach (var button in new[] { ScanButton, OneClickButton, LibraryButton, AddFolderButton,
-                                       UpdateGameButton, RestoreButton, PresetButton, OptiScalerButton })
+                                       UpdateGameButton, RestoreButton, PresetButton, OptiScalerButton,
+                                       ApplyTweaksButton })
             button.IsEnabled = !busy;
         Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
     }
@@ -198,6 +212,22 @@ public partial class MainWindow : Window
             Log($"{game.Name}: {DllSwapper.Restore(dll, unlockOnAccessDenied: game.LimitedModSupport).Message}");
         if (!game.Dlls.Any(d => d.HasBackup)) Log($"{game.Name}: nichts wiederherzustellen.");
         RefreshDetail();
+    }
+
+    private void SharpnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (SharpnessLabel != null)
+            SharpnessLabel.Text = $"{e.NewValue:P0}";
+    }
+
+    private void ApplyTweaksButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+
+        var mode = QualityOptions[Math.Max(0, QualityCombo.SelectedIndex)].Mode;
+        double? sharpness = SharpenCheck.IsChecked == true ? SharpnessSlider.Value : null;
+        Log($"{game.Name}: {QualityTweaker.Apply(game, mode, sharpness).Message}");
     }
 
     private void PresetButton_Click(object sender, RoutedEventArgs e)

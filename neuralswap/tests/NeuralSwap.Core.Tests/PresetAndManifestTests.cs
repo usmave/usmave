@@ -84,6 +84,78 @@ public class PresetForcerTests : IDisposable
     }
 }
 
+public class QualityTweakerTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "nstest_" + Guid.NewGuid().ToString("N"));
+
+    public QualityTweakerTests() => Directory.CreateDirectory(_root);
+    public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
+
+    private Game MakeGame()
+    {
+        var game = new Game { Name = "Test", InstallDir = _root, Platform = GamePlatform.Manual };
+        var dll = Path.Combine(_root, "nvngx_dlssnr.dll");
+        File.WriteAllBytes(dll, new byte[] { 1 });
+        game.Dlls.Add(new InstalledDll { Kind = DlssDllKind.NeuralRendering, Path = dll });
+        return game;
+    }
+
+    [Fact]
+    public void WritesQualityAndSharpnessToOptiScalerIni()
+    {
+        File.WriteAllLines(Path.Combine(_root, "OptiScaler.ini"), new[] { "[QualityOverrides]", "QualityRatioOverrideEnabled=false" });
+
+        var result = QualityTweaker.Apply(MakeGame(), QualityMode.Performance, sharpness: 0.3);
+
+        Assert.True(result.Success, result.Message);
+        var ini = IniFile.Load(result.ConfigFile!);
+        Assert.Equal("true", ini.Get("QualityOverrides", "QualityRatioOverrideEnabled"));
+        Assert.Equal("2.0", ini.Get("QualityOverrides", "QualityRatioQuality"));
+        Assert.Equal("true", ini.Get("Sharpness", "OverrideSharpness"));
+        Assert.Equal("0.3", ini.Get("Sharpness", "Sharpness"));
+    }
+
+    [Fact]
+    public void GameDefaultDisablesOverride()
+    {
+        File.WriteAllLines(Path.Combine(_root, "OptiScaler.ini"), new[] { "[QualityOverrides]", "QualityRatioOverrideEnabled=true" });
+
+        var result = QualityTweaker.Apply(MakeGame(), QualityMode.GameDefault);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("false", IniFile.Load(result.ConfigFile!).Get("QualityOverrides", "QualityRatioOverrideEnabled"));
+    }
+
+    [Fact]
+    public void FallsBackToDlssTweaksWithFractions()
+    {
+        var result = QualityTweaker.Apply(MakeGame(), QualityMode.Quality);
+
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith("dlsstweaks.ini", result.ConfigFile);
+        var ini = IniFile.Load(result.ConfigFile!);
+        Assert.Equal("true", ini.Get("DLSSQualityLevels", "Enable"));
+        Assert.Equal("0.666667", ini.Get("DLSSQualityLevels", "Performance"));
+    }
+
+    [Fact]
+    public void DlaaUsesForceDlaaInDlssTweaks()
+    {
+        var result = QualityTweaker.Apply(MakeGame(), QualityMode.Dlaa);
+
+        Assert.True(result.Success, result.Message);
+        var ini = IniFile.Load(result.ConfigFile!);
+        Assert.Equal("true", ini.Get("DLSS", "ForceDLAA"));
+        Assert.Equal("false", ini.Get("DLSSQualityLevels", "Enable"));
+    }
+
+    [Fact]
+    public void RejectsInvalidSharpness()
+    {
+        Assert.False(QualityTweaker.Apply(MakeGame(), QualityMode.Quality, sharpness: 1.5).Success);
+    }
+}
+
 public class VersionManifestTests
 {
     [Fact]

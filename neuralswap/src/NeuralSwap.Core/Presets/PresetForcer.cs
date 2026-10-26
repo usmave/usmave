@@ -40,8 +40,8 @@ public static class PresetForcer
             if (optiScalerIni != null)
             {
                 var ini = IniFile.Load(optiScalerIni);
-                ini.Set("Dlss", "RenderPresetOverride", "true");
-                ini.Set("Dlss", "RenderPresetForAll", preset);
+                ini.Set("DLSS", "RenderPresetOverride", "true");
+                ini.Set("DLSS", "RenderPresetForAll", preset);
                 ini.Save(optiScalerIni);
                 return new PresetResult(true, $"Preset {preset} über OptiScaler.ini erzwungen.", optiScalerIni);
             }
