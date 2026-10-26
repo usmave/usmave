@@ -8,8 +8,7 @@ OptiScaler-Installation für Spiele ohne native DLSS-Unterstützung.
 ## Features
 
 - **Spiele-Scan**: Steam (alle Bibliotheken), Epic Games, GOG, Xbox/Game Pass
-  (nur Anzeige – UWP-Titel sind meist nicht modbar) sowie manuell
-  hinzugefügte Ordner.
+  (`C:\XboxGames`) sowie manuell hinzugefügte Ordner.
 - **One-Click-Update**: Tauscht alle gefundenen NGX-DLLs
   (`nvngx_dlss.dll`, `nvngx_dlssg.dll`, `nvngx_dlssd.dll`, `nvngx_dlssnr.dll`)
   gegen die neueste Version aus der lokalen DLL-Bibliothek. Das Original wird
@@ -60,8 +59,12 @@ können.
 - **Multiplayer/Anti-Cheat**: DLL-Tausch und erst recht OptiScaler-Injektion
   nur in Singleplayer-Spielen verwenden. In Online-Titeln mit Anti-Cheat
   drohen Sperren.
-- **Xbox/Game Pass**: UWP-geschützte Installationen lassen sich meist nicht
-  verändern; die App überspringt sie beim One-Click.
+- **Xbox/Game Pass**: Spiele unter `C:\XboxGames` sind per ACL geschützt.
+  Die App entsperrt die betroffenen Dateien bei Bedarf automatisch per
+  Besitzübernahme (takeown/icacls, dank Adminrechten). Das funktioniert bei
+  vielen, aber nicht bei allen Titeln – und Updates über die Xbox App
+  stellen die Originaldateien wieder her, danach einfach erneut den
+  One-Click ausführen.
 - **Rückgängig machen**: „Originale wiederherstellen" stellt die gesicherte
   DLL wieder her. Auch ein Spiel-Dateicheck (Steam: „Spieldateien
   überprüfen") ersetzt getauschte DLLs durch die Originale.

@@ -14,8 +14,13 @@ public static class DllSwapper
 
     public static string BackupPath(string dllPath) => dllPath + BackupSuffix;
 
-    /// <summary>Ersetzt die DLL im Spiel durch <paramref name="sourceDll"/>.</summary>
-    public static SwapResult Swap(InstalledDll target, string sourceDll)
+    /// <summary>
+    /// Ersetzt die DLL im Spiel durch <paramref name="sourceDll"/>.
+    /// Mit <paramref name="unlockOnAccessDenied"/> wird bei Zugriffsfehlern
+    /// (typisch für Xbox/Game-Pass-Ordner) einmal versucht, die Datei per
+    /// Besitzübernahme zu entsperren, und der Swap wiederholt.
+    /// </summary>
+    public static SwapResult Swap(InstalledDll target, string sourceDll, bool unlockOnAccessDenied = false)
     {
         if (!File.Exists(sourceDll))
             return SwapResult.Fail($"Quelldatei fehlt: {sourceDll}");
@@ -29,19 +34,24 @@ public static class DllSwapper
 
         try
         {
-            var backup = BackupPath(target.Path);
-            if (!File.Exists(backup))
-                File.Copy(target.Path, backup);
-
-            File.Copy(sourceDll, target.Path, overwrite: true);
-            target.Version = DlssDllLocator.ReadFileVersion(target.Path) ?? newVersion;
-            target.HasBackup = true;
-            return SwapResult.Ok(
-                $"{Path.GetFileName(target.Path)}: {oldVersion ?? "?"} → {target.Version ?? "?"}",
-                oldVersion, target.Version);
+            return CopyWithBackup(target, sourceDll, newVersion, oldVersion);
         }
         catch (UnauthorizedAccessException ex)
         {
+            if (unlockOnAccessDenied && FileUnlocker.TryUnlock(target.Path))
+            {
+                try
+                {
+                    var result = CopyWithBackup(target, sourceDll, newVersion, oldVersion);
+                    return result with { Message = result.Message + " (Datei wurde zuvor entsperrt)" };
+                }
+                catch (Exception retryEx) when (retryEx is IOException or UnauthorizedAccessException)
+                {
+                    return SwapResult.Fail(
+                        $"{target.Path} bleibt trotz Entsperrung geschützt: {retryEx.Message}. " +
+                        "Dieser Titel lässt sich vermutlich nicht modden.");
+                }
+            }
             return SwapResult.Fail(
                 $"Kein Schreibzugriff auf {target.Path}. Spiel schließen bzw. App als Administrator starten. ({ex.Message})");
         }
@@ -51,12 +61,28 @@ public static class DllSwapper
         }
     }
 
+    private static SwapResult CopyWithBackup(InstalledDll target, string sourceDll, string? newVersion, string? oldVersion)
+    {
+        var backup = BackupPath(target.Path);
+        if (!File.Exists(backup))
+            File.Copy(target.Path, backup);
+
+        File.Copy(sourceDll, target.Path, overwrite: true);
+        target.Version = DlssDllLocator.ReadFileVersion(target.Path) ?? newVersion;
+        target.HasBackup = true;
+        return SwapResult.Ok(
+            $"{Path.GetFileName(target.Path)}: {oldVersion ?? "?"} → {target.Version ?? "?"}",
+            oldVersion, target.Version);
+    }
+
     /// <summary>Stellt die ursprüngliche DLL aus dem Backup wieder her.</summary>
-    public static SwapResult Restore(InstalledDll target)
+    public static SwapResult Restore(InstalledDll target, bool unlockOnAccessDenied = false)
     {
         var backup = BackupPath(target.Path);
         if (!File.Exists(backup))
             return SwapResult.Fail($"Kein Backup vorhanden für {target.Path}.");
+
+        if (unlockOnAccessDenied) FileUnlocker.TryUnlock(target.Path);
 
         try
         {

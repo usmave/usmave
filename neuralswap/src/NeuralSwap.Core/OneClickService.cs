@@ -72,7 +72,8 @@ public sealed class OneClickService
                 continue;
             }
 
-            var result = DllSwapper.Swap(dll, latest.Path);
+            // Xbox/Game-Pass-Dateien sind oft ACL-geschützt → bei Bedarf entsperren.
+            var result = DllSwapper.Swap(dll, latest.Path, unlockOnAccessDenied: game.LimitedModSupport);
             progress?.Report($"{game.Name}: {result.Message}");
             swaps.Add(result);
         }
@@ -95,10 +96,7 @@ public sealed class OneClickService
         {
             if (game.Dlls.Count == 0) continue;
             if (game.LimitedModSupport)
-            {
-                progress?.Report($"{game.Name}: Xbox/Game-Pass-Titel übersprungen (UWP-Schutz).");
-                continue;
-            }
+                progress?.Report($"{game.Name}: Xbox/Game-Pass-Titel – geschützte Dateien werden bei Bedarf entsperrt.");
             results.Add(UpdateGame(game, forcePreset, progress));
         }
         return results;

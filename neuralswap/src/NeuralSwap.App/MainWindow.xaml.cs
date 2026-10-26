@@ -195,7 +195,7 @@ public partial class MainWindow : Window
         var game = SelectedGame;
         if (_busy || game == null) return;
         foreach (var dll in game.Dlls.Where(d => d.HasBackup))
-            Log($"{game.Name}: {DllSwapper.Restore(dll).Message}");
+            Log($"{game.Name}: {DllSwapper.Restore(dll, unlockOnAccessDenied: game.LimitedModSupport).Message}");
         if (!game.Dlls.Any(d => d.HasBackup)) Log($"{game.Name}: nichts wiederherzustellen.");
         RefreshDetail();
     }

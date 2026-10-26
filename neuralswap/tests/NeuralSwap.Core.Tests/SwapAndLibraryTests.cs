@@ -158,14 +158,26 @@ public class OneClickServiceTests : IDisposable
     }
 
     [Fact]
-    public void UpdateAllSkipsXboxGames()
+    public void UpdateAllProcessesXboxGames()
     {
+        var gameDir = Path.Combine(_root, "XboxGames", "GamePassTitel", "Content");
+        Directory.CreateDirectory(gameDir);
+        var dllPath = Path.Combine(gameDir, "nvngx_dlssnr.dll");
+        File.WriteAllBytes(dllPath, new byte[] { 1 });
+
         var library = new DllLibrary(Path.Combine(_root, "lib"));
-        var game = new Game { Name = "GamePassTitel", InstallDir = _root, Platform = GamePlatform.Xbox };
-        game.Dlls.Add(new InstalledDll { Kind = DlssDllKind.SuperResolution, Path = Path.Combine(_root, "x.dll") });
+        var import = Path.Combine(_root, "nvngx_dlssnr.dll");
+        File.WriteAllBytes(import, new byte[] { 9, 9 });
+        library.Import(import);
+
+        var game = new Game { Name = "GamePassTitel", InstallDir = gameDir, Platform = GamePlatform.Xbox };
+        game.Dlls.Add(new InstalledDll { Kind = DlssDllKind.NeuralRendering, Path = dllPath });
 
         var results = new OneClickService(library).UpdateAll(new[] { game });
 
-        Assert.Empty(results);
+        var result = Assert.Single(results);
+        var swap = Assert.Single(result.Swaps);
+        Assert.True(swap.Success, swap.Message);
+        Assert.Equal(new byte[] { 9, 9 }, File.ReadAllBytes(dllPath));
     }
 }
