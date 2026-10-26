@@ -53,7 +53,8 @@ public static class DlssDllLocator
         try
         {
             var info = FileVersionInfo.GetVersionInfo(file);
-            if (!string.IsNullOrWhiteSpace(info.FileVersion)) return info.FileVersion;
+            if (!string.IsNullOrWhiteSpace(info.FileVersion))
+                return Library.DllLibrary.NormalizeVersion(info.FileVersion);
             if (info.FileMajorPart + info.FileMinorPart + info.FileBuildPart + info.FilePrivatePart > 0)
                 return $"{info.FileMajorPart}.{info.FileMinorPart}.{info.FileBuildPart}.{info.FilePrivatePart}";
         }

@@ -82,9 +82,16 @@ public sealed class DllLibrary
 
     public static Version ParseVersion(string version)
     {
+        // NVIDIA-DLLs tragen die Version teils mit Kommas ("310,9,16,0"),
+        // Community-Builds mit Textteilen ("310.8.SF.0") – beides normalisieren.
+        version = NormalizeVersion(version);
         var numeric = new string(version.TakeWhile(c => char.IsDigit(c) || c == '.').ToArray()).Trim('.');
         return Version.TryParse(numeric.Contains('.') ? numeric : numeric + ".0", out var v) ? v : new Version(0, 0);
     }
+
+    /// <summary>Vereinheitlicht Versionsstrings: Kommas zu Punkten, Leerzeichen raus.</summary>
+    public static string NormalizeVersion(string version) =>
+        version.Replace(',', '.').Replace(" ", "");
 
     private static string Sanitize(string s)
     {

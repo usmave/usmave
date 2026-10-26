@@ -120,6 +120,10 @@ public class DllLibraryTests : IDisposable
     [InlineData("310.9.16.0", "310.8.0.0", true)]
     [InlineData("310.10.0.0", "310.9.16.0", true)]
     [InlineData("3.17.20", "310.9.16.0", false)]
+    // NVIDIA schreibt Versionen teils mit Kommas, Community-Builds mit Text.
+    [InlineData("310,9,16,0", "310.8.SF.0", true)]
+    [InlineData("310.8.SF.0", "310,9,16,0", false)]
+    [InlineData("310, 9, 16, 0", "310.9.1.0", true)]
     public void ParseVersionOrdersNumerically(string a, string b, bool aNewer)
     {
         var cmp = DllLibrary.ParseVersion(a).CompareTo(DllLibrary.ParseVersion(b));
@@ -176,6 +180,17 @@ public class LibraryHarvesterTests : IDisposable
     }
 
     [Fact]
+    public void ImportsCommaVersionOverShortFuseBuild()
+    {
+        // Regressionstest: "310,9,16,0" (Kommas!) muss als neuer erkannt
+        // werden als ein importierter ShortFuse-Build "310.8.SF.0".
+        var library = MakeLibraryWithVersion("310.8.SF.0");
+        var game = MakeGameWithDll("310,9,16,0");
+
+        Assert.Single(LibraryHarvester.Harvest(new[] { game }, library));
+    }
+
+    [Fact]
     public void SkipsWhenLibraryIsUpToDate()
     {
         var library = MakeLibraryWithVersion("310.9.16.0");
@@ -222,6 +237,31 @@ public class OneClickServiceTests : IDisposable
         var swap = Assert.Single(result.Swaps);
         Assert.True(swap.Success, swap.Message);
         Assert.Equal(new byte[] { 9, 9 }, File.ReadAllBytes(dllPath));
+    }
+
+    [Fact]
+    public void UpdateGameNeverDowngrades()
+    {
+        // Regressionstest für den Metro-Fall: Spiel hat 310,9,16,0 (Kommas),
+        // Bibliothek nur einen älteren ShortFuse-Build → kein Swap!
+        var gameDir = Path.Combine(_root, "game_downgrade");
+        Directory.CreateDirectory(gameDir);
+        var dllPath = Path.Combine(gameDir, "nvngx_dlssnr.dll");
+        File.WriteAllBytes(dllPath, new byte[] { 1 });
+
+        var library = new DllLibrary(Path.Combine(_root, "lib_downgrade"));
+        var libDir = Path.Combine(library.Root, "nvngx_dlssnr.dll", "310.8.SF.0");
+        Directory.CreateDirectory(libDir);
+        File.WriteAllBytes(Path.Combine(libDir, "nvngx_dlssnr.dll"), new byte[] { 9 });
+
+        var game = new Game { Name = "Metro", InstallDir = gameDir, Platform = GamePlatform.Steam };
+        game.Dlls.Add(new InstalledDll { Kind = DlssDllKind.NeuralRendering, Path = dllPath, Version = "310,9,16,0" });
+
+        var result = new OneClickService(library).UpdateGame(game);
+
+        var swap = Assert.Single(result.Swaps);
+        Assert.True(swap.Skipped, swap.Message);
+        Assert.Equal(new byte[] { 1 }, File.ReadAllBytes(dllPath)); // unverändert
     }
 
     [Fact]

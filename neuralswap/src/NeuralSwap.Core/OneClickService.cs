@@ -64,10 +64,13 @@ public sealed class OneClickService
                 continue;
             }
 
+            // Nie downgraden: Spiele können per Update neuere DLLs mitbringen
+            // als die Bibliothek kennt.
             if (dll.Version != null &&
                 DllLibrary.ParseVersion(dll.Version) >= DllLibrary.ParseVersion(latest.Version))
             {
-                swaps.Add(SwapResult.Ok($"{dll.Kind.FileName()}: bereits aktuell ({dll.Version}).",
+                swaps.Add(SwapResult.Ok(
+                    $"{dll.Kind.FileName()}: bereits aktuell oder neuer ({dll.Version}, Bibliothek: {latest.Version}).",
                     dll.Version, dll.Version, skipped: true));
                 continue;
             }
