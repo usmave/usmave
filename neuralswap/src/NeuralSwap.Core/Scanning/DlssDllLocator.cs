@@ -7,25 +7,33 @@ namespace NeuralSwap.Core.Scanning;
 /// <summary>Sucht in einem Spielordner nach den tauschbaren NGX-DLLs.</summary>
 public static class DlssDllLocator
 {
-    /// <summary>Tiefenbegrenzung, damit riesige Spielordner nicht ewig gescannt werden.</summary>
-    public const int MaxDepth = 6;
+    /// <summary>
+    /// Tiefenbegrenzung, damit riesige Spielordner nicht ewig gescannt
+    /// werden. Unreal-Engine-Spiele (z. B. Hogwarts Legacy) liegen bei
+    /// Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64 –
+    /// das sind bereits 8 Ebenen, daher großzügig 12.
+    /// </summary>
+    public const int MaxDepth = 12;
 
     public static List<InstalledDll> Locate(string gameDir)
     {
         var found = new List<InstalledDll>();
         if (!Directory.Exists(gameDir)) return found;
-        Walk(gameDir, 0, found);
-        return found;
-    }
 
-    private static void Walk(string dir, int depth, List<InstalledDll> found)
-    {
-        if (depth > MaxDepth) return;
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            MaxRecursionDepth = MaxDepth,
+            IgnoreInaccessible = true,
+            // Reparse-Points überspringen, sonst drohen Endlosschleifen
+            // über Verzeichnis-Links.
+            AttributesToSkip = FileAttributes.ReparsePoint,
+        };
 
         IEnumerable<string> files;
-        try { files = Directory.EnumerateFiles(dir, "nvngx_dlss*.dll"); }
-        catch (UnauthorizedAccessException) { return; }
-        catch (IOException) { return; }
+        try { files = Directory.EnumerateFiles(gameDir, "nvngx_dlss*.dll", options); }
+        catch (UnauthorizedAccessException) { return found; }
+        catch (IOException) { return found; }
 
         foreach (var file in files)
         {
@@ -38,14 +46,7 @@ public static class DlssDllLocator
                 HasBackup = File.Exists(DllSwapper.BackupPath(file)),
             });
         }
-
-        IEnumerable<string> subDirs;
-        try { subDirs = Directory.EnumerateDirectories(dir); }
-        catch (UnauthorizedAccessException) { return; }
-        catch (IOException) { return; }
-
-        foreach (var sub in subDirs)
-            Walk(sub, depth + 1, found);
+        return found;
     }
 
     public static string? ReadFileVersion(string file)

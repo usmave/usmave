@@ -158,4 +158,20 @@ public class DlssDllLocatorTests : IDisposable
         Assert.Contains(dlls, d => d.Kind == DlssDllKind.SuperResolution);
         Assert.Contains(dlls, d => d.Kind == DlssDllKind.NeuralRendering);
     }
+
+    [Fact]
+    public void FindsDllsInDeepUnrealEnginePaths()
+    {
+        // Regressionstest für Hogwarts Legacy & Co.: UE-Spiele liegen
+        // 8 Ebenen tief – die alte Tiefengrenze (6) hat sie übersehen.
+        var ueDir = Path.Combine(_root,
+            "Engine", "Plugins", "Runtime", "Nvidia", "DLSS", "Binaries", "ThirdParty", "Win64");
+        Directory.CreateDirectory(ueDir);
+        File.WriteAllBytes(Path.Combine(ueDir, "nvngx_dlss.dll"), new byte[] { 1 });
+
+        var dlls = DlssDllLocator.Locate(_root);
+
+        var dll = Assert.Single(dlls);
+        Assert.Equal(DlssDllKind.SuperResolution, dll.Kind);
+    }
 }
