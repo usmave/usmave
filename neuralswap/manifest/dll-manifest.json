@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-26",
+  "notes": "Versionskatalog für NeuralSwap. NVIDIA-DLLs dürfen nicht weiterverbreitet werden, deshalb enthält dieses Manifest nur Metadaten. Trage unter 'sources' eigene vertrauenswürdige Download-URLs ein (inkl. sha256!) oder importiere die DLLs manuell in der App – z. B. aus einem Spiel, das die Version bereits mitbringt, oder von TechPowerUp/Nexus Mods.",
+  "dlls": [
+    {
+      "fileName": "nvngx_dlssnr.dll",
+      "version": "310.9.16.0",
+      "sha256": null,
+      "sources": [],
+      "notes": "DLSS 5 Neural Rendering – neuestes Modell (erschienen Okt. 2026, u. a. mit NBA 2K27 ausgeliefert). Preset B aktiviert das neue, deutlich schnellere Modell."
+    },
+    {
+      "fileName": "nvngx_dlss.dll",
+      "version": "310.4.0.0",
+      "sha256": null,
+      "sources": [],
+      "notes": "DLSS Super Resolution (Transformer-Modell)."
+    },
+    {
+      "fileName": "nvngx_dlssg.dll",
+      "version": "310.4.0.0",
+      "sha256": null,
+      "sources": [],
+      "notes": "DLSS Frame Generation / Multi Frame Generation."
+    },
+    {
+      "fileName": "nvngx_dlssd.dll",
+      "version": "310.4.0.0",
+      "sha256": null,
+      "sources": [],
+      "notes": "DLSS Ray Reconstruction."
+    }
+  ],
+  "presets": {
+    "neuralRendering": {
+      "recommended": "B",
+      "description": "Preset A = altes Modell, Preset B = neues schnelles Neural-Rendering-Modell (bis ~40 % mehr FPS, minimal weichere Bildqualität)."
+    },
+    "superResolution": {
+      "recommended": "K",
+      "description": "Preset K = neuestes Transformer-Preset für klassisches DLSS-Upscaling."
+    }
+  },
+  "optiscalerRepo": "optiscaler/OptiScaler"
+}

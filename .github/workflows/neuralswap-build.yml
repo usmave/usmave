@@ -1,0 +1,43 @@
+name: NeuralSwap Build
+
+on:
+  push:
+    branches: ["*"]
+    paths:
+      - "neuralswap/**"
+      - ".github/workflows/neuralswap-build.yml"
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Core-Tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Tests ausführen
+        run: dotnet test neuralswap/tests/NeuralSwap.Core.Tests -v minimal
+
+  build:
+    name: Windows-App bauen
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: App veröffentlichen (self-contained, eine EXE)
+        run: >
+          dotnet publish neuralswap/src/NeuralSwap.App
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o neuralswap/publish
+      - name: Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeuralSwap-win-x64
+          path: neuralswap/publish/
+          if-no-files-found: error

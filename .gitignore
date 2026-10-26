@@ -4,3 +4,8 @@ package-lock.json
 ram/daten/
 ram/werkzeuge/
 __pycache__/
+
+# .NET
+bin/
+obj/
+neuralswap/publish/

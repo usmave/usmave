@@ -1,0 +1,40 @@
+<Window x:Class="NeuralSwap.App.LibraryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DLL-Bibliothek" Width="720" Height="480"
+        Background="{StaticResource BgBrush}"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="ImportButton" Style="{StaticResource AccentButton}" Click="ImportButton_Click">📥 DLL importieren…</Button>
+            <Button x:Name="DownloadButton" Click="DownloadButton_Click">⬇ Neueste Versionen laden (Manifest)</Button>
+        </StackPanel>
+
+        <ListBox Grid.Row="1" x:Name="EntriesList">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="260"/>
+                            <ColumnDefinition Width="140"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding KindName}" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Version}"/>
+                        <TextBlock Grid.Column="2" Text="{Binding Path}" Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="11" TextTrimming="CharacterEllipsis"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock Grid.Row="2" Margin="0,10,0,0" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"
+                   Text="Hinweis: NVIDIA-DLLs dürfen nicht weiterverbreitet werden. Importiere sie aus einem Spiel, das die Version bereits mitbringt (z. B. nvngx_dlssnr.dll aus einem aktuellen Titel), oder von einer vertrauenswürdigen Quelle wie TechPowerUp/Nexus Mods. Downloads über das Manifest funktionieren nur, wenn dort Quellen-URLs eingetragen sind."/>
+    </Grid>
+</Window>

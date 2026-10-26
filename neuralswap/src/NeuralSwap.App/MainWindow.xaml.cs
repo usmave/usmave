@@ -1,0 +1,263 @@
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using Microsoft.Win32;
+using NeuralSwap.Core;
+using NeuralSwap.Core.Library;
+using NeuralSwap.Core.Models;
+using NeuralSwap.Core.OptiScaler;
+using NeuralSwap.Core.Presets;
+using NeuralSwap.Core.Scanning;
+using NeuralSwap.Core.Swapping;
+
+namespace NeuralSwap.App;
+
+public partial class MainWindow : Window
+{
+    private readonly AppSettings _settings = AppSettings.Load();
+    private readonly DllLibrary _library = new();
+    private readonly ManifestService _manifests = new();
+    private readonly OneClickService _oneClick;
+
+    private List<Game> _games = new();
+    private VersionManifest? _manifest;
+    private bool _busy;
+
+    private static string LocalManifestPath => Path.Combine(AppContext.BaseDirectory, "dll-manifest.json");
+
+    public MainWindow()
+    {
+        InitializeComponent();
+        _oneClick = new OneClickService(_library, _manifests);
+
+        PresetCombo.ItemsSource = PresetForcer.KnownPresets;
+        PresetCombo.SelectedItem = PresetForcer.KnownPresets.Contains(_settings.PreferredPreset)
+            ? _settings.PreferredPreset : "B";
+        ForcePresetCheck.IsChecked = _settings.ForcePresetOnOneClick;
+
+        Log("NeuralSwap gestartet. Erst „Spiele scannen“, dann „One-Click“. " +
+            "DLL-Versionen verwaltest du unter „DLL-Bibliothek…“.");
+    }
+
+    // ----- Hilfsklassen für die Listen -----
+
+    private sealed record GameRow(Game Game, string Name, string Subtitle);
+    private sealed record DllRow(string KindName, string Version, string Status);
+
+    // ----- Protokoll -----
+
+    private void Log(string message) => Dispatcher.Invoke(() =>
+    {
+        LogBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\r\n");
+        LogBox.ScrollToEnd();
+    });
+
+    private IProgress<string> LogProgress() => new Progress<string>(Log);
+
+    // ----- Zustand -----
+
+    private string SelectedPreset => PresetCombo.SelectedItem as string ?? "B";
+    private string? PresetIfForced => ForcePresetCheck.IsChecked == true ? SelectedPreset : null;
+
+    private Game? SelectedGame => (GamesList.SelectedItem as GameRow)?.Game;
+
+    private void SetBusy(bool busy)
+    {
+        _busy = busy;
+        foreach (var button in new[] { ScanButton, OneClickButton, LibraryButton, AddFolderButton,
+                                       UpdateGameButton, RestoreButton, PresetButton, OptiScalerButton })
+            button.IsEnabled = !busy;
+        Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
+    }
+
+    private void SaveSettings()
+    {
+        _settings.PreferredPreset = SelectedPreset;
+        _settings.ForcePresetOnOneClick = ForcePresetCheck.IsChecked == true;
+        _settings.Save();
+    }
+
+    // ----- Spieleliste -----
+
+    private void RefreshGamesList()
+    {
+        var filter = SearchBox.Text?.Trim() ?? string.Empty;
+        var rows = _games
+            .Where(g => filter.Length == 0 || g.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .Select(g => new GameRow(g, g.Name,
+                $"{g.Platform} · {g.Dlls.Count} DLSS-DLL(s)" + (g.LimitedModSupport ? " · eingeschränkt" : "")))
+            .ToList();
+        GamesList.ItemsSource = rows;
+    }
+
+    private void RefreshDetail()
+    {
+        var game = SelectedGame;
+        if (game == null)
+        {
+            DetailPanel.Visibility = Visibility.Collapsed;
+            NoSelectionText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        NoSelectionText.Visibility = Visibility.Collapsed;
+        DetailPanel.Visibility = Visibility.Visible;
+        GameTitle.Text = game.Name;
+        GamePath.Text = game.InstallDir;
+        GameWarning.Visibility = game.LimitedModSupport ? Visibility.Visible : Visibility.Collapsed;
+
+        DllList.ItemsSource = game.Dlls.Count == 0
+            ? new List<DllRow> { new("Keine DLSS-DLLs gefunden", "–",
+                "Über „OptiScaler installieren“ lässt sich DLSS ggf. trotzdem nachrüsten.") }
+            : game.Dlls.Select(d =>
+            {
+                var latest = _library.Latest(d.Kind);
+                var status = d.HasBackup ? "getauscht (Backup vorhanden)" : "original";
+                if (latest != null && d.Version != null &&
+                    DllLibrary.ParseVersion(latest.Version) > DllLibrary.ParseVersion(d.Version))
+                    status += $" · Update auf {latest.Version} verfügbar";
+                return new DllRow(d.Kind.DisplayName(), d.Version ?? "unbekannt", status);
+            }).ToList();
+    }
+
+    private void GamesList_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshDetail();
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshGamesList();
+
+    // ----- Aktionen -----
+
+    private async void ScanButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        SetBusy(true);
+        try
+        {
+            var progress = LogProgress();
+            var manualFolders = _settings.ManualFolders.ToList();
+            _games = (await Task.Run(() => new GameScanner(manualFolders).ScanAll(progress))).ToList();
+            RefreshGamesList();
+            RefreshDetail();
+            var withDlss = _games.Count(g => g.Dlls.Count > 0);
+            Log($"Scan fertig: {_games.Count} Spiele gefunden, davon {withDlss} mit DLSS-DLLs.");
+        }
+        catch (Exception ex) { Log("Scan fehlgeschlagen: " + ex.Message); }
+        finally { SetBusy(false); }
+    }
+
+    private async Task EnsureManifestAndLibraryAsync()
+    {
+        _manifest ??= await _manifests.LoadAsync(_settings.ManifestUrl, LocalManifestPath);
+        await _oneClick.SyncLibraryAsync(_manifest, LogProgress());
+    }
+
+    private async void OneClickButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        if (_games.Count == 0) { Log("Bitte zuerst „Spiele scannen“."); return; }
+        SetBusy(true);
+        SaveSettings();
+        try
+        {
+            await EnsureManifestAndLibraryAsync();
+            var preset = PresetIfForced;
+            var progress = LogProgress();
+            var results = await Task.Run(() => _oneClick.UpdateAll(_games, preset, progress));
+            var swapped = results.SelectMany(r => r.Swaps).Count(s => s.Success && !s.Skipped);
+            var failed = results.SelectMany(r => r.Swaps).Count(s => !s.Success);
+            Log($"One-Click fertig: {swapped} DLL(s) aktualisiert, {failed} Fehler.");
+            RefreshGamesList();
+            RefreshDetail();
+        }
+        catch (Exception ex) { Log("One-Click fehlgeschlagen: " + ex.Message); }
+        finally { SetBusy(false); }
+    }
+
+    private async void UpdateGameButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+        SetBusy(true);
+        SaveSettings();
+        try
+        {
+            await EnsureManifestAndLibraryAsync();
+            var preset = PresetIfForced;
+            var progress = LogProgress();
+            await Task.Run(() => _oneClick.UpdateGame(game, preset, progress));
+            RefreshDetail();
+        }
+        catch (Exception ex) { Log("Aktualisierung fehlgeschlagen: " + ex.Message); }
+        finally { SetBusy(false); }
+    }
+
+    private void RestoreButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+        foreach (var dll in game.Dlls.Where(d => d.HasBackup))
+            Log($"{game.Name}: {DllSwapper.Restore(dll).Message}");
+        if (!game.Dlls.Any(d => d.HasBackup)) Log($"{game.Name}: nichts wiederherzustellen.");
+        RefreshDetail();
+    }
+
+    private void PresetButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+        SaveSettings();
+        Log($"{game.Name}: {PresetForcer.Force(game, SelectedPreset).Message}");
+    }
+
+    private async void OptiScalerButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+        if (MessageBox.Show(
+                $"OptiScaler in „{game.Name}“ installieren?\n\nDas lädt das neueste Release von GitHub und " +
+                $"legt es als {_settings.OptiScalerProxy} in den Spielordner. Nur für Singleplayer-Spiele " +
+                "empfohlen – in Multiplayer-Titeln kann DLL-Injektion zu Anti-Cheat-Sperren führen!",
+                "OptiScaler installieren", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        SetBusy(true);
+        try
+        {
+            await EnsureManifestAndLibraryAsync();
+            var repo = _manifest?.OptiScalerRepo ?? "optiscaler/OptiScaler";
+            var result = await new OptiScalerInstaller().InstallAsync(game, repo, _settings.OptiScalerProxy, LogProgress());
+            Log($"{game.Name}: {result.Message}");
+        }
+        catch (Exception ex) { Log("OptiScaler-Installation fehlgeschlagen: " + ex.Message); }
+        finally { SetBusy(false); }
+    }
+
+    private async void AddFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        var dialog = new OpenFolderDialog { Title = "Spielordner auswählen" };
+        if (dialog.ShowDialog(this) != true) return;
+
+        if (!_settings.ManualFolders.Contains(dialog.FolderName, StringComparer.OrdinalIgnoreCase))
+        {
+            _settings.ManualFolders.Add(dialog.FolderName);
+            _settings.Save();
+        }
+        Log($"Ordner hinzugefügt: {dialog.FolderName}");
+        ScanButton_Click(sender, e);
+        await Task.CompletedTask;
+    }
+
+    private async void LibraryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        try
+        {
+            _manifest ??= await _manifests.LoadAsync(_settings.ManifestUrl, LocalManifestPath);
+        }
+        catch (Exception ex) { Log("Manifest konnte nicht geladen werden: " + ex.Message); }
+
+        var window = new LibraryWindow(_library, _manifests, _manifest ?? new VersionManifest(), Log) { Owner = this };
+        window.ShowDialog();
+        RefreshDetail();
+    }
+}
