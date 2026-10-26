@@ -28,6 +28,9 @@ public sealed class GameScanner
         progress?.Report("Scanne Xbox / Game Pass …");
         TryAdd(games, () => new XboxScanner().Scan());
 
+        progress?.Report("Scanne Spielordner auf allen Laufwerken …");
+        TryAdd(games, () => new DriveScanner().Scan());
+
         foreach (var folder in ManualFolders.Where(Directory.Exists))
         {
             games.Add(new Game

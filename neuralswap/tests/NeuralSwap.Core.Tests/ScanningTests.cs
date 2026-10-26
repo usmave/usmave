@@ -110,6 +110,33 @@ public class EpicScannerTests : IDisposable
     }
 }
 
+public class DriveScannerTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "nstest_" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
+
+    [Fact]
+    public void FindsGamesInCommonFoldersAndSkipsIgnored()
+    {
+        // Simuliertes Laufwerk E:\ mit Games-, Spiele- und Epic-Ordnern.
+        Directory.CreateDirectory(Path.Combine(_root, "Games", "GameC"));
+        Directory.CreateDirectory(Path.Combine(_root, "Spiele", "GameD"));
+        Directory.CreateDirectory(Path.Combine(_root, "Epic Games", "GameE"));
+        Directory.CreateDirectory(Path.Combine(_root, "Epic Games", "Launcher")); // kein Spiel
+        Directory.CreateDirectory(Path.Combine(_root, "Irgendwas", "GameF"));     // kein bekannter Ordner
+
+        var games = new DriveScanner().ScanRoots(new[] { _root });
+
+        Assert.Equal(3, games.Count);
+        Assert.Contains(games, g => g.Name == "GameC" && g.Platform == GamePlatform.Manual);
+        Assert.Contains(games, g => g.Name == "GameD");
+        Assert.Contains(games, g => g.Name == "GameE");
+        Assert.DoesNotContain(games, g => g.Name == "Launcher");
+        Assert.DoesNotContain(games, g => g.Name == "GameF");
+    }
+}
+
 public class DlssDllLocatorTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "nstest_" + Guid.NewGuid().ToString("N"));

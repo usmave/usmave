@@ -7,8 +7,10 @@ OptiScaler-Installation für Spiele ohne native DLSS-Unterstützung.
 
 ## Features
 
-- **Spiele-Scan**: Steam (alle Bibliotheken), Epic Games, GOG, Xbox/Game Pass
-  (`C:\XboxGames`) sowie manuell hinzugefügte Ordner.
+- **Spiele-Scan**: Steam (alle Bibliotheken, auch auf anderen Laufwerken),
+  Epic Games, GOG, Xbox/Game Pass (`XboxGames` auf allen Laufwerken),
+  typische Spielordner wie `E:\Games`, `E:\Spiele` oder `D:\Epic Games` auf
+  allen festen Laufwerken sowie manuell hinzugefügte Ordner.
 - **One-Click-Update**: Tauscht alle gefundenen NGX-DLLs
   (`nvngx_dlss.dll`, `nvngx_dlssg.dll`, `nvngx_dlssd.dll`, `nvngx_dlssnr.dll`)
   gegen die neueste Version aus der lokalen DLL-Bibliothek. Das Original wird
