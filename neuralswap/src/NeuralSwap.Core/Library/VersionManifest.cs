@@ -19,6 +19,7 @@ public sealed class VersionManifest
     [JsonPropertyName("dlls")] public List<ManifestDll> Dlls { get; set; } = new();
     [JsonPropertyName("presets")] public Dictionary<string, ManifestPreset> Presets { get; set; } = new();
     [JsonPropertyName("optiscalerRepo")] public string OptiScalerRepo { get; set; } = "optiscaler/OptiScaler";
+    [JsonPropertyName("neuralRendering")] public NeuralRendering.NrSources NeuralRendering { get; set; } = new();
 
     public static VersionManifest Parse(string json) =>
         JsonSerializer.Deserialize<VersionManifest>(json, JsonOptions)

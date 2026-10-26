@@ -79,6 +79,15 @@
                                 <TextBlock x:Name="SharpnessLabel" Text="30 %" VerticalAlignment="Center" Margin="6,0,16,0" Width="44"/>
                                 <Button x:Name="ApplyTweaksButton" Click="ApplyTweaksButton_Click">🖼 Bild-Einstellungen anwenden</Button>
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Button x:Name="NeuralButton" Style="{StaticResource AccentButton}" Click="NeuralButton_Click">🧠 Neural Rendering installieren (Gesichter &amp; Beleuchtung)</Button>
+                                <TextBlock Text="Modell-Auflösung:" VerticalAlignment="Center" Margin="8,0,6,0"/>
+                                <ComboBox x:Name="NrScaleCombo" Width="90" VerticalAlignment="Center" SelectedIndex="1">
+                                    <ComboBoxItem>100 %</ComboBoxItem>
+                                    <ComboBoxItem>75 %</ComboBoxItem>
+                                    <ComboBoxItem>50 %</ComboBoxItem>
+                                </ComboBox>
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <Button x:Name="UpdateGameButton" Style="{StaticResource AccentButton}" Click="UpdateGameButton_Click">⚡ Dieses Spiel aktualisieren</Button>
                                 <Button x:Name="RestoreButton" Click="RestoreButton_Click">↩ Originale wiederherstellen</Button>

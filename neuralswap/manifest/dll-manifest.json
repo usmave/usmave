@@ -42,5 +42,14 @@
       "description": "Preset K = neuestes Transformer-Preset für klassisches DLSS-Upscaling."
     }
   },
-  "optiscalerRepo": "optiscaler/OptiScaler"
+  "optiscalerRepo": "optiscaler/OptiScaler",
+  "neuralRendering": {
+    "feederRepo": "jlrouzies-fr/DLSS5-Feeder",
+    "lumeniteRepo": "umar-afzaal/LumeniteFX",
+    "lumeniteBranch": "mainline",
+    "shadersRepo": "crosire/reshade-shaders",
+    "shadersBranch": "slim",
+    "addonRepo": "RankFTW/rhi-repo",
+    "addonAssetPrefix": "renodx-dlss5"
+  }
 }

@@ -69,7 +69,34 @@ können.
 | **Preset-Override** | Neues Neural-Modell aktivieren (Preset B bzw. K) | „Preset erzwingen" (OptiScaler-/DLSSTweaks-Ini) |
 | **OptiScaler-Injektion** | Spiele ohne DLSS, FSR/XeSS→DLSS-Bridge, Basis der AMD-Mods | „OptiScaler installieren" |
 | **Stärke/Schärfe** | Interne Auflösung und Nachschärfung erzwingen | „Bild-Einstellungen anwenden" |
-| ReShade/RenoDX-Kombos | HDR/Farb-Mods zusätzlich zu DLSS | nicht automatisiert (pro Spiel zu verschieden) |
+| **Neural Rendering (Gesichter & Beleuchtung)** | Fotorealistische Gesichter/Licht per DLSS-5-NR-Modell | „Neural Rendering installieren" |
+| ReShade/RenoDX-Farbkombos | HDR/Farb-Mods zusätzlich | nicht automatisiert (pro Spiel zu verschieden) |
+
+### Neural Rendering (fotorealistische Gesichter & Beleuchtung)
+
+Die App installiert die Community-Pipeline nach dem Muster der etablierten
+Installer, automatisch in der passenden Variante:
+
+- **Pfad A** (Spiel hat natives DLSS): ReShade-Addon `renodx-dlss5.addon64`
+  + `nvngx_dlssnr.dll`; Konfiguration in `ReShade.ini`
+  (`[RenoDX.DLSS5]` mit `NRHookPoint`, `NRPasses`, `NRDetailStability`).
+- **Pfad B** (kein natives DLSS): `dlss5-feed.addon64` + `DLSS5_Feed.fx`
+  + LumeniteFX als Motion-Vector-Provider + Shader-Header;
+  `ReShade.ini` bekommt `DLSS5_MV_PROVIDER=3`, die Modell-Auflösung steht
+  in `dlss5-feed.cfg` (`work_resolution`).
+
+Die Modell-Auflösung (100/75/50 %) ist in der App wählbar – 75 % ist der
+übliche Kompromiss für RTX 20/30. **ReShade mit Add-on-Unterstützung** muss
+einmalig über den offiziellen Installer (reshade.me) ins Spiel; die App
+erkennt das und weist darauf hin. Deinstallation über denselben Knopf.
+
+**Ehrliche Warnung:** Diese Pipeline ist experimentell und stammt aus der
+Community, nicht von NVIDIA. Die Quell-Repos stehen im Manifest
+(`neuralRendering`) und lassen sich austauschen; die `nvngx_dlssnr.dll`
+(RTX 50: Original, RTX 20–40: ShortFuse-Build) besorgst du selbst. Auf
+schwächeren Karten kostet der Neural-Pass massiv Leistung, und die Optik
+(z. B. veränderte Gesichter) gefällt nicht jedem – Backup/Rollback ist
+eingebaut.
 
 **Aktivierung im Spiel:** Nach dem DLL-Swap einfach im Grafikmenü des Spiels
 DLSS auswählen – die neue DLL lädt automatisch. Bei OptiScaler öffnet die

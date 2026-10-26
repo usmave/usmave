@@ -5,6 +5,7 @@ using Microsoft.Win32;
 using NeuralSwap.Core;
 using NeuralSwap.Core.Library;
 using NeuralSwap.Core.Models;
+using NeuralSwap.Core.NeuralRendering;
 using NeuralSwap.Core.OptiScaler;
 using NeuralSwap.Core.Presets;
 using NeuralSwap.Core.Scanning;
@@ -79,7 +80,7 @@ public partial class MainWindow : Window
         _busy = busy;
         foreach (var button in new[] { ScanButton, OneClickButton, LibraryButton, AddFolderButton,
                                        UpdateGameButton, RestoreButton, PresetButton, OptiScalerButton,
-                                       ApplyTweaksButton })
+                                       ApplyTweaksButton, NeuralButton })
             button.IsEnabled = !busy;
         Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
     }
@@ -258,6 +259,54 @@ public partial class MainWindow : Window
             Log($"{game.Name}: {result.Message}");
         }
         catch (Exception ex) { Log("OptiScaler-Installation fehlgeschlagen: " + ex.Message); }
+        finally { SetBusy(false); }
+    }
+
+    private async void NeuralButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+
+        var installDir = game.Dlls
+            .Select(d => System.IO.Path.GetDirectoryName(d.Path)!)
+            .FirstOrDefault() ?? game.InstallDir;
+
+        if (NeuralRenderingInstaller.IsInstalled(installDir))
+        {
+            if (MessageBox.Show(
+                    $"Neural Rendering ist in „{game.Name}“ bereits installiert.\n\nEntfernen?",
+                    "Neural Rendering", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                Log($"{game.Name}: {NeuralRenderingInstaller.Uninstall(installDir).Message}");
+            return;
+        }
+
+        var routeA = game.Dlls.Any(d => d.Kind == DlssDllKind.SuperResolution);
+        var route = routeA
+            ? "RenoDX-Route (Spiel hat natives DLSS)"
+            : "Feeder-Route (DLSS5-Feeder + LumeniteFX, Spiel ohne natives DLSS)";
+        if (MessageBox.Show(
+                $"Neural Rendering (fotorealistische Gesichter & Beleuchtung) in „{game.Name}“ installieren?\n\n" +
+                $"Methode: {route}.\n" +
+                "Es werden Community-Komponenten von GitHub geladen (experimentell, nicht von NVIDIA!). " +
+                "Die nvngx_dlssnr.dll kommt aus deiner DLL-Bibliothek – für RTX 20–40 brauchst du den " +
+                "ShortFuse-Kompatibilitäts-Build, für RTX 50 das Original. Nur für Singleplayer-Spiele!\n\n" +
+                "ReShade mit Add-on-Unterstützung muss ggf. einmalig über reshade.me installiert werden.",
+                "Neural Rendering installieren", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        SetBusy(true);
+        try
+        {
+            await EnsureManifestAndLibraryAsync();
+            var options = new NrOptions
+            {
+                WorkingScalePercent = NrScaleCombo.SelectedIndex switch { 0 => 100, 2 => 50, _ => 75 },
+            };
+            var sources = _manifest?.NeuralRendering ?? new NrSources();
+            var result = await new NeuralRenderingInstaller().InstallAsync(game, _library, sources, options, LogProgress());
+            Log($"{game.Name}: {result.Message}");
+        }
+        catch (Exception ex) { Log("Neural-Rendering-Installation fehlgeschlagen: " + ex.Message); }
         finally { SetBusy(false); }
     }
 
