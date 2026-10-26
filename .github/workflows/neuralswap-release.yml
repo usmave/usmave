@@ -1,0 +1,40 @@
+name: NeuralSwap Release
+
+on:
+  push:
+    tags:
+      - "neuralswap-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Windows-Release bauen
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Tests ausführen
+        run: dotnet test neuralswap/tests/NeuralSwap.Core.Tests -v minimal
+      - name: App veröffentlichen (self-contained, eine EXE)
+        run: >
+          dotnet publish neuralswap/src/NeuralSwap.App
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o neuralswap/publish
+      - name: Release-Zip packen
+        run: Compress-Archive -Path neuralswap/publish/* -DestinationPath NeuralSwap-win-x64.zip
+      - name: Release erstellen
+        uses: softprops/action-gh-release@v2
+        with:
+          name: NeuralSwap ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          files: NeuralSwap-win-x64.zip
+          body: >
+            Windows-App für DLSS-5-Mods mit einem Klick.
+            Zip entpacken und NeuralSwap.exe starten (fordert Adminrechte an).
+            Anleitung: neuralswap/README.md im Repository.
