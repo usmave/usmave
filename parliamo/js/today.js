@@ -2,7 +2,7 @@
  * Das Tagesprogramm („Heute lernen“) und die Lerneinheiten eines Bereichs.
  */
 import { S, save, today } from './store.js';
-import { dueItems, newItems, focusArea, userLevel, newLeft } from './session.js';
+import { dueItems, newItems, focusArea, pathItems, userLevel, newLeft } from './session.js';
 import { learnSteps, reviewStep, noteStep, summaryStep, quickCheckStep } from './ex/vocab.js';
 import { dialogStep, dictationSteps } from './ex/listen.js';
 import { roleStep, shadowSteps } from './ex/speak.js';
@@ -33,7 +33,7 @@ export function planToday(minutes = S().settings.minutes || 15) {
   const due = dueItems();
   const cap = minutes <= 5 ? 12 : minutes >= 30 ? 60 : 30;
   const area = focusArea();
-  const fresh = area ? newItems(area.id, newBudget(minutes)) : [];
+  const fresh = area ? pathItems(newBudget(minutes)) : [];
   return {
     minutes,
     reviews: due.slice(0, cap),
