@@ -37,11 +37,15 @@ NVIDIAs DLSS-DLLs dürfen nicht weiterverbreitet werden. Deshalb liefert die
 App keine DLLs mit und das Standard-Manifest enthält keine Download-URLs.
 Zwei Wege, die Bibliothek zu füllen:
 
-1. **Manuell importieren** („DLL-Bibliothek… → DLL importieren"): die
-   `nvngx_dlssnr.dll` z. B. aus einem Spiel kopieren, das die neueste Version
-   bereits mitbringt, oder von einer vertrauenswürdigen Quelle
-   (TechPowerUp, Nexus Mods) herunterladen.
-2. **Eigene Quellen ins Manifest eintragen** (`sources` + `sha256`): dann
+1. **Automatische Ernte aus deinen Spielen** (empfohlen): Beim Scan prüft
+   die App alle gefundenen DLLs – bringt ein Spiel per offiziellem Update
+   eine neuere Version mit (z. B. Metro 2033/Last Light Redux seit dem
+   Next-Gen-Update vom 22.10.2026 mit DLSS 5 NR), wandert sie automatisch
+   in die Bibliothek und ist per One-Click in allen Spielen nutzbar.
+2. **Manuell importieren** („DLL-Bibliothek… → DLL importieren"): die
+   `nvngx_dlssnr.dll` aus einem beliebigen Ordner oder von einer
+   vertrauenswürdigen Quelle (TechPowerUp, Nexus Mods).
+3. **Eigene Quellen ins Manifest eintragen** (`sources` + `sha256`): dann
    lädt die App die DLL selbst herunter und verifiziert den Hash.
 
 ## Bauen

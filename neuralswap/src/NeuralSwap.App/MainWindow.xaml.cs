@@ -154,6 +154,17 @@ public partial class MainWindow : Window
             RefreshDetail();
             var withDlss = _games.Count(g => g.Dlls.Count > 0);
             Log($"Scan fertig: {_games.Count} Spiele gefunden, davon {withDlss} mit DLSS-DLLs.");
+
+            // Neuere DLL-Versionen, die Spiele selbst mitbringen (z. B. per
+            // offiziellem Update), automatisch in die Bibliothek übernehmen.
+            var games = _games;
+            var harvested = await Task.Run(() => LibraryHarvester.Harvest(games, _library, progress));
+            if (harvested.Count > 0)
+            {
+                Log($"{harvested.Count} neue DLL-Version(en) aus deinen Spielen geerntet – " +
+                    "per One-Click jetzt in allen Spielen nutzbar.");
+                RefreshDetail();
+            }
         }
         catch (Exception ex) { Log("Scan fehlgeschlagen: " + ex.Message); }
         finally { SetBusy(false); }

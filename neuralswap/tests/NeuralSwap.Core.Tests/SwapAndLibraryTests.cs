@@ -127,6 +127,73 @@ public class DllLibraryTests : IDisposable
     }
 }
 
+public class LibraryHarvesterTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "nstest_" + Guid.NewGuid().ToString("N"));
+
+    public LibraryHarvesterTests() => Directory.CreateDirectory(_root);
+    public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
+
+    private Game MakeGameWithDll(string? version, bool hasBackup = false)
+    {
+        var gameDir = Path.Combine(_root, "game_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(gameDir);
+        var dllPath = Path.Combine(gameDir, "nvngx_dlssnr.dll");
+        File.WriteAllBytes(dllPath, new byte[] { 1, 2 });
+        var game = new Game { Name = "Metro Last Light Redux", InstallDir = gameDir, Platform = GamePlatform.Steam };
+        game.Dlls.Add(new InstalledDll
+        {
+            Kind = DlssDllKind.NeuralRendering,
+            Path = dllPath,
+            Version = version,
+            HasBackup = hasBackup,
+        });
+        return game;
+    }
+
+    private DllLibrary MakeLibraryWithVersion(string? version)
+    {
+        var library = new DllLibrary(Path.Combine(_root, "lib"));
+        if (version != null)
+        {
+            // Bibliotheksversionen stammen aus dem Ordnernamen.
+            var dir = Path.Combine(library.Root, "nvngx_dlssnr.dll", version);
+            Directory.CreateDirectory(dir);
+            File.WriteAllBytes(Path.Combine(dir, "nvngx_dlssnr.dll"), new byte[] { 9 });
+        }
+        return library;
+    }
+
+    [Fact]
+    public void ImportsNewerVersionFromGame()
+    {
+        var library = MakeLibraryWithVersion("310.8.0.0");
+        var game = MakeGameWithDll("310.9.16.0");
+
+        var imported = LibraryHarvester.Harvest(new[] { game }, library);
+
+        Assert.Single(imported);
+    }
+
+    [Fact]
+    public void SkipsWhenLibraryIsUpToDate()
+    {
+        var library = MakeLibraryWithVersion("310.9.16.0");
+        var game = MakeGameWithDll("310.9.16.0");
+
+        Assert.Empty(LibraryHarvester.Harvest(new[] { game }, library));
+    }
+
+    [Fact]
+    public void SkipsSwappedAndUnversionedDlls()
+    {
+        var library = MakeLibraryWithVersion(null);
+        var games = new[] { MakeGameWithDll(null), MakeGameWithDll("310.9.16.0", hasBackup: true) };
+
+        Assert.Empty(LibraryHarvester.Harvest(games, library));
+    }
+}
+
 public class OneClickServiceTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "nstest_" + Guid.NewGuid().ToString("N"));
