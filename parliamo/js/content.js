@@ -12,6 +12,8 @@ export const GROUPS = [
   { id: 'leute', title: 'Unter Leuten', sub: 'Freunde, Smalltalk, Gefühle' },
   { id: 'alltag', title: 'Alltag & Zuhause', sub: 'Wohnen, Arbeit, Freizeit' },
   { id: 'gesundheit', title: 'Gesundheit & Notfälle', sub: 'Apotheke, Arzt, Hilfe' },
+  { id: 'sprechen', title: 'Fließend sprechen', sub: 'Erzählen, beschreiben, diskutieren' },
+  { id: 'themen', title: 'Themen für Gespräche', sub: 'Schule, Technik, Medien, Kultur und mehr' },
   { id: 'basis', title: 'Grundwortschatz', sub: 'Verben, Zahlen, Adjektive, kleine Wörter' },
 ];
 

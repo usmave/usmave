@@ -15,7 +15,7 @@ Keine Backticks und kein `${` im Text verwenden.
 
 | Zeile | Bedeutung |
 |---|---|
-| `@ id \| Titel \| Emoji \| Gruppe` | Kopf des Bereichs (erste Zeile). Gruppen: reisen, essen, erledigen, leute, alltag, gesundheit, basis |
+| `@ id \| Titel \| Emoji \| Gruppe` | Kopf des Bereichs (erste Zeile). Gruppen: reisen, essen, erledigen, leute, alltag, gesundheit, sprechen, themen, basis |
 | `! Titel \| Text` | „Gut zu wissen“-Notiz (2–4 Sätze) |
 | `#A2` / `#B1` / `#B2` | Niveau für die folgenden Einträge |
 | `it \| de \| Beispielsatz \| Übersetzung \| Hinweis?` | Wort. Im Beispielsatz die Wortform in `[eckige Klammern]`, sonst wird sie automatisch gesucht |

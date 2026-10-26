@@ -19,6 +19,7 @@ import strand from './areas/strand.js';
 import adjektive from './areas/adjektive.js';
 import freunde from './areas/freunde.js';
 import tagesablauf from './areas/tagesablauf.js';
+import zeit from './areas/zeit.js';
 import speisen from './areas/speisen.js';
 import aperitivo from './areas/aperitivo.js';
 import familie from './areas/familie.js';
@@ -42,11 +43,42 @@ import service from './areas/service.js';
 import arbeit from './areas/arbeit.js';
 import amt from './areas/amt.js';
 import gesten from './areas/gesten.js';
+import falscheFreunde from './areas/falsche-freunde.js';
+import erzaehlen from './areas/erzaehlen.js';
+import beschreiben from './areas/beschreiben.js';
+import diskutieren from './areas/diskutieren.js';
+import gespraech from './areas/gespraech.js';
+import vorschlaege from './areas/vorschlaege.js';
+import beziehungen from './areas/beziehungen.js';
+import schule from './areas/schule.js';
+import technik from './areas/technik.js';
+import medien from './areas/medien.js';
+import umwelt from './areas/umwelt.js';
+import tiere from './areas/tiere.js';
+import kleidung from './areas/kleidung.js';
+import stadt from './areas/stadt.js';
+import geld from './areas/geld.js';
+import kultur from './areas/kultur.js';
+import gesellschaft from './areas/gesellschaft.js';
+import geschichte from './areas/geschichte.js';
+import lebensmittel from './areas/lebensmittel.js';
+import haushalt from './areas/haushalt.js';
+import wellness from './areas/wellness.js';
+import verben2 from './areas/verben2.js';
+import verben3 from './areas/verben3.js';
+import nomen from './areas/nomen.js';
+import nomen2 from './areas/nomen2.js';
+import sport from './areas/sport.js';
+import urlaub from './areas/urlaub.js';
+import adjektive2 from './areas/adjektive2.js';
 
 export default [
   kennenlernen, bar, restaurant, verben, hotel, weg, zahlen, bahn, markt, geschaeft,
   smalltalk, kleinwoerter, wetter, sightseeing, nahverkehr, pizzaGelato, strand, adjektive,
-  freunde, tagesablauf, speisen, aperitivo, familie, bank, apotheke, telefon, flughafen,
+  freunde, tagesablauf, zeit, speisen, aperitivo, familie, bank, apotheke, telefon, flughafen,
   auto, supermarkt, gefuehle, feste, natur, arzt, notfall, kochen, freizeit, postHandy,
-  wohnen, beschweren, service, arbeit, amt, gesten,
+  wohnen, beschweren, service, arbeit, amt, gesten, falscheFreunde,
+  erzaehlen, beschreiben, diskutieren, gespraech, vorschlaege, beziehungen,
+  schule, technik, medien, umwelt, tiere, kleidung, stadt, geld, kultur, gesellschaft, geschichte,
+  lebensmittel, haushalt, wellness, sport, urlaub, verben2, verben3, nomen, nomen2, adjektive2,
 ];

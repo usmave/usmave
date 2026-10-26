@@ -779,6 +779,15 @@ const HELP = [
     ],
   ],
   [
+    'Wie geht der Lernpfad?',
+    [
+      'Unter „Heute lernen“ kommen neue Wörter aus dem Lernpfad – Bereich für Bereich in einer sinnvollen Reihenfolge.',
+      'In der ersten Runde lernst du in allen Bereichen die Wörter deines Niveaus und die leichteren. Danach geht es mit den schwereren Wörtern noch einmal durch alle Bereiche – erst Mittelstufe, dann Fortgeschritten.',
+      'Willst du ein Thema vorziehen, öffne den Bereich und schalte „Fokus für Heute lernen“ ein. Dann kommen die neuen Wörter komplett aus diesem Bereich.',
+      'Mit „Lernen“ in einem Bereich kannst du jederzeit zusätzlich Wörter aus genau diesem Bereich lernen.',
+    ],
+  ],
+  [
     'Wo ist mein Lernstand gespeichert?',
     [
       'Nur auf diesem iPhone – es gibt kein Konto und nichts wird hochgeladen.',

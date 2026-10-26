@@ -81,11 +81,11 @@ function levelOrder() {
  * Neue Einträge eines Bereichs: erst das eigene Niveau, dann leichtere, dann schwerere;
  * auf vier Wörter kommt etwa ein Satz.
  */
-export function newItems(areaId, n) {
+export function newItems(areaId, n, { wave = null } = {}) {
   const area = areaById.get(areaId);
   if (!area || n <= 0) return [];
   const rank = levelOrder();
-  const fresh = area.items.filter((x) => !S().cards[x.id]);
+  const fresh = area.items.filter((x) => !S().cards[x.id] && (wave == null || inWave(x, wave)));
   const sorted = fresh.slice().sort((a, b) => rank(a) - rank(b) || a.n - b.n);
   const words = sorted.filter((x) => x.kind === 'w');
   const phrases = sorted.filter((x) => x.kind === 'p');
@@ -102,22 +102,68 @@ export function newLeft(areaId) {
   return area ? area.items.filter((x) => !S().cards[x.id]).length : 0;
 }
 
+/* ---------------- Lernpfad in Runden ----------------
+ * Runde 1: in allen Bereichen das eigene Niveau und alles Leichtere.
+ * Danach je eine Runde pro schwererem Niveau (B1, dann B2) – wieder durch alle Bereiche.
+ * So kennt man früh die Grundwörter aller Themen, statt erst einen Bereich bis B2 auszureizen.
+ */
+const TOP = 2; // B2
+
+function inWave(item, w) {
+  const L = levelRank(userLevel());
+  const r = levelRank(item.lvl);
+  return w <= L ? r <= L : r === w;
+}
+
+function waveLeft(area, w) {
+  return area.items.filter((x) => !S().cards[x.id] && inWave(x, w)).length;
+}
+
+function waveProgress(area, w) {
+  const inW = area.items.filter((x) => inWave(x, w));
+  return inW.filter((x) => S().cards[x.id]).length / Math.max(1, inW.length);
+}
+
+/** Aktuelle Runde des Lernpfads (0 = A2, 1 = B1, 2 = B2) oder null, wenn alles kennengelernt ist. */
+export function pathWave() {
+  const L = levelRank(userLevel());
+  for (let w = L; w <= TOP; w++) if (areas.some((a) => waveLeft(a, w) > 0)) return w;
+  return null;
+}
+
 /** Bereich für neue Einträge: der gewählte Fokus oder der nächste im Lernpfad. */
 export function focusArea() {
   const f = S().settings.focus;
   if (f && areaById.has(f) && newLeft(f) > 0) return areaById.get(f);
-  // Lernpfad: angefangene Bereiche zuerst fertig machen, dann der nächste in der Reihenfolge
-  const started = areas.filter((a) => newLeft(a.id) > 0 && a.items.some((x) => S().cards[x.id]));
+  const w = pathWave();
+  if (w == null) return areas[0] || null;
+  const open = areas.filter((a) => waveLeft(a, w) > 0);
+  // In dieser Runde angefangene Bereiche zuerst fertig machen, dann der nächste in der Reihenfolge
+  const started = open.filter((a) => a.items.some((x) => S().cards[x.id] && inWave(x, w)));
   if (started.length) {
-    started.sort((a, b) => progressOf(b) - progressOf(a) || a.n - b.n);
+    started.sort((a, b) => waveProgress(b, w) - waveProgress(a, w) || a.n - b.n);
     return started[0];
   }
-  return areas.find((a) => newLeft(a.id) > 0) || areas[0] || null;
+  return open[0];
 }
 
-function progressOf(area) {
-  const seen = area.items.filter((x) => S().cards[x.id]).length;
-  return seen / Math.max(1, area.items.length);
+/**
+ * Neue Einträge für „Heute lernen“: aus dem Fokus-Bereich (alle Niveaus)
+ * oder aus dem Lernpfad (nur die aktuelle Runde, bei Bedarf aus dem nächsten Bereich aufgefüllt).
+ */
+export function pathItems(n) {
+  const area = focusArea();
+  if (!area || n <= 0) return [];
+  if (S().settings.focus === area.id) return newItems(area.id, n);
+  const w = pathWave();
+  if (w == null) return [];
+  const out = newItems(area.id, n, { wave: w });
+  for (const a of areas) {
+    if (out.length >= n) break;
+    if (a === area || a.n < area.n) continue;
+    out.push(...newItems(a.id, n - out.length, { wave: w }));
+  }
+  return out;
 }
 
 /* ---------------- Stufen je Bereich ---------------- */
