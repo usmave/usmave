@@ -8,28 +8,28 @@
       "version": "310.9.16.0",
       "sha256": null,
       "sources": [],
-      "notes": "DLSS 5 Neural Rendering – neuestes Modell (erschienen Okt. 2026, u. a. mit NBA 2K27 ausgeliefert). Preset B aktiviert das neue, deutlich schnellere Modell."
+      "notes": "DLSS 5 Neural Rendering – neuestes Modell (Okt. 2026, ausgeliefert mit NBA 2K27 und dem Metro-Redux-Next-Gen-Update). Preset B aktiviert das neue, deutlich schnellere Modell."
     },
     {
       "fileName": "nvngx_dlss.dll",
-      "version": "310.4.0.0",
+      "version": "310.9.16.0",
       "sha256": null,
       "sources": [],
-      "notes": "DLSS Super Resolution (Transformer-Modell)."
+      "notes": "DLSS Super Resolution (Transformer-Modell). 310.9.16.0 wird u. a. mit dem Metro-Redux-Next-Gen-Update (22.10.2026) ausgeliefert."
     },
     {
       "fileName": "nvngx_dlssg.dll",
-      "version": "310.4.0.0",
+      "version": "310.9.1.0",
       "sha256": null,
       "sources": [],
-      "notes": "DLSS Frame Generation / Multi Frame Generation."
+      "notes": "DLSS Frame Generation / Multi Frame Generation (Stand TechPowerUp, Okt. 2026)."
     },
     {
       "fileName": "nvngx_dlssd.dll",
-      "version": "310.4.0.0",
+      "version": "310.9.1.0",
       "sha256": null,
       "sources": [],
-      "notes": "DLSS Ray Reconstruction."
+      "notes": "DLSS Ray Reconstruction (Stand TechPowerUp, Okt. 2026)."
     }
   ],
   "presets": {
