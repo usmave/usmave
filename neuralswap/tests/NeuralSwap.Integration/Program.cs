@@ -122,6 +122,41 @@ try
     }
     else Warn($"EnableHooks-Test übersprungen (Consumer: {afterInstall.Consumer})");
 
+    // Neues NR-Modell (offiziell, RTX 50) aus rhi-repo – wie es die DLL-Ernte z. B. aus Metro holt.
+    var releases = await new GitHubReleases(http).GetReleasesAsync("RankFTW/rhi-repo", maxPages: 3);
+    var modelRelease = GitHubReleases.PickLatest(releases, @"^dlssnr-310\.9\.16$",
+        a => a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+    if (modelRelease == null)
+    {
+        Warn("dlssnr-310.9.16 nicht im rhi-repo gefunden – Modell-Tausch-Test übersprungen");
+    }
+    else
+    {
+        var asset = modelRelease.Assets.First(a => a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+        var zipPath = Path.Combine(work, "model", asset.Name);
+        await new GitHubReleases(http).DownloadAsync(asset.Url, zipPath, asset.Digest);
+        var extracted = Path.Combine(work, "model", "nvngx_dlssnr.dll");
+        using (var zip = System.IO.Compression.ZipFile.OpenRead(zipPath))
+            zip.Entries.First(e => e.Name.Equals("nvngx_dlssnr.dll", StringComparison.OrdinalIgnoreCase))
+                .ExtractToFile(extracted, overwrite: true);
+        var library = new NeuralSwap.Core.Library.DllLibrary(Path.Combine(work, "library"));
+        var imported = library.Import(extracted);
+        Check(imported.Version.StartsWith("310.9.16"), $"echtes Modell aus {modelRelease.TagName} importiert: {imported.Version}");
+
+        GameScanner.Refresh(nrGame);
+        var nrDll = Path.Combine(nrDir, "nvngx_dlssnr.dll");
+        var toolModel = FileVersionInfo.GetVersionInfo(nrDll).FileVersion;
+
+        new NeuralSwap.Core.OneClickService(library, isRtx50: () => false).UpdateGame(nrGame, progress: progress);
+        Check(FileVersionInfo.GetVersionInfo(nrDll).FileVersion == toolModel,
+            $"RTX 20–40: DLSS5oneclick-Modell bleibt ({toolModel})");
+
+        new NeuralSwap.Core.OneClickService(library, isRtx50: () => true).UpdateGame(nrGame, progress: progress);
+        var swapped = FileVersionInfo.GetVersionInfo(nrDll).FileVersion;
+        Check(swapped?.Replace(',', '.').Replace(" ", "").StartsWith("310.9.16") == true && File.Exists(nrDll + ".nsbak"),
+            $"RTX 50: Modell auf {swapped} getauscht, Sicherung vorhanden");
+    }
+
     var diagnose = await nr.DiagnoseAsync(nrGame, progress);
     Console.WriteLine("       Diagnose: " + diagnose.Message + " (ohne Spielstart sind FAIL-Zeilen erwartbar)");
 

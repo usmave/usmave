@@ -113,6 +113,15 @@ public sealed class NeuralRenderingService
             return new(false, "Entfernen fehlgeschlagen (läuft das Spiel noch?): " + Summary(result.Output, "error:"));
 
         try { File.Delete(StatePath(game)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+
+        // Hat der One-Click das NR-Modell von DLSS5oneclick getauscht, bleibt dessen Sicherung
+        // übrig, nachdem DLSS5oneclick die DLL entfernt hat – sie gehört zum entfernten Setup.
+        var dlssNr = Path.Combine(game.ModDir, DlssDllKind.NeuralRendering.FileName());
+        var orphan = DllSwapper.BackupPath(dlssNr);
+        if (!File.Exists(dlssNr) && File.Exists(orphan))
+        {
+            try { File.Delete(orphan); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
         return new(true, removeReShade
             ? "Neural Rendering und ReShade entfernt."
             : "Neural Rendering entfernt. ReShade bleibt, weil es schon vorher da war (oder nicht über NeuralSwap kam).");

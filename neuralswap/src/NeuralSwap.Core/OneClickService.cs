@@ -14,11 +14,14 @@ public sealed class OneClickService
 {
     private readonly DllLibrary _library;
     private readonly ManifestService _manifests;
+    private readonly Lazy<bool> _isRtx50;
 
-    public OneClickService(DllLibrary library, ManifestService? manifests = null)
+    /// <param name="isRtx50">Nur für Tests; sonst wird die Grafikkarte über den Treiber erkannt.</param>
+    public OneClickService(DllLibrary library, ManifestService? manifests = null, Func<bool>? isRtx50 = null)
     {
         _library = library;
         _manifests = manifests ?? new ManifestService();
+        _isRtx50 = new Lazy<bool>(isRtx50 ?? (() => Hardware.GpuInfo.IsRtx50(Hardware.GpuInfo.NvidiaAdapterName())));
     }
 
     /// <summary>
@@ -27,6 +30,7 @@ public sealed class OneClickService
     /// </summary>
     public async Task SyncLibraryAsync(VersionManifest manifest, IProgress<string>? progress = null, CancellationToken ct = default)
     {
+        var withoutSource = new List<string>();
         foreach (var dll in manifest.Dlls)
         {
             if (!DlssDllKinds.ByFileName.TryGetValue(dll.FileName, out var kind)) continue;
@@ -37,14 +41,17 @@ public sealed class OneClickService
 
             if (dll.Sources.Count == 0)
             {
-                progress?.Report(
-                    $"{dll.FileName} {dll.Version} ist verfügbar, hat aber keine Download-Quelle – bitte manuell importieren.");
+                withoutSource.Add($"{dll.FileName} {dll.Version}");
                 continue;
             }
 
             try { await _manifests.DownloadAsync(dll, _library, progress, ct); }
             catch (Exception ex) { progress?.Report($"Download übersprungen: {ex.Message}"); }
         }
+
+        if (withoutSource.Count > 0)
+            progress?.Report($"Laut Katalog gibt es neuere DLLs ({string.Join(", ", withoutSource)}), aber ohne Download-Quelle – " +
+                             "die Scan-Ernte übernimmt sie, sobald ein Spiel sie mitbringt; sonst unter „DLL-Bibliothek…“ importieren.");
     }
 
     public sealed record GameResult(Game Game, List<SwapResult> Swaps, PresetForcer.PresetResult? Preset, int CleanedFiles);
@@ -71,6 +78,16 @@ public sealed class OneClickService
             {
                 swaps.Add(SwapResult.Ok(
                     $"{dll.Kind.FileName()}: bereits aktuell oder neuer ({dll.Version}, Bibliothek: {latest.Version}).",
+                    dll.Version, dll.Version, skipped: true));
+                continue;
+            }
+
+            // Das von DLSS5oneclick gesetzte NR-Modell ist ein Build für alle RTX-Generationen.
+            // Das offizielle (schnellere) neue Modell erzeugt das Feature nur auf RTX 50.
+            if (dll.Kind == DlssDllKind.NeuralRendering && File.Exists(dll.Path + ".dlss5oneclick") && !_isRtx50.Value)
+            {
+                swaps.Add(SwapResult.Ok(
+                    $"{dll.Kind.FileName()}: Modell von DLSS5oneclick bleibt ({dll.Version}) – das neue Modell {latest.Version} läuft nur auf RTX 50.",
                     dll.Version, dll.Version, skipped: true));
                 continue;
             }

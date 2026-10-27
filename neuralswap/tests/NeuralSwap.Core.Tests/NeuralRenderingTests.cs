@@ -128,6 +128,19 @@ public class NeuralRenderingServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoveDeletesOrphanedModelBackup()
+    {
+        var game = MakeGame();
+        await Service().InstallAsync(game);
+        // One-Click hat das Modell getauscht, DLSS5oneclick entfernt danach die DLL selbst:
+        File.WriteAllBytes(Path.Combine(game.ModDir, "nvngx_dlssnr.dll.nsbak"), new byte[] { 1 });
+
+        await Service().UninstallAsync(game);
+
+        Assert.False(File.Exists(Path.Combine(game.ModDir, "nvngx_dlssnr.dll.nsbak")));
+    }
+
+    [Fact]
     public async Task RemoveWithoutOwnRecordKeepsReShade()
     {
         var game = MakeGame(reshade: true);
@@ -295,5 +308,77 @@ public class AppSettingsMigrationTests : IDisposable
         Assert.False(s.ForcePresetOnOneClick);
         Assert.Equal(PresetChoice.Latest, s.PreferredPresetChoice);
         Assert.Equal(AppSettings.CurrentVersion, s.SettingsVersion);
+    }
+}
+
+public class GpuAndModelSwapTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "nstest_" + Guid.NewGuid().ToString("N"));
+
+    public GpuAndModelSwapTests() => Directory.CreateDirectory(_root);
+    public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
+
+    [Theory]
+    [InlineData("NVIDIA GeForce RTX 5090", true)]
+    [InlineData("NVIDIA GeForce RTX 5070 Ti Laptop GPU", true)]
+    [InlineData("NVIDIA RTX PRO 6000 Blackwell Workstation Edition", true)]
+    [InlineData("NVIDIA GeForce RTX 4090", false)]
+    [InlineData("NVIDIA GeForce RTX 3080", false)]
+    [InlineData(null, false)]
+    public void RecognisesRtx50(string? name, bool expected) =>
+        Assert.Equal(expected, NeuralSwap.Core.Hardware.GpuInfo.IsRtx50(name));
+
+    private (Game Game, string Dll) GameWithToolModel(bool sidecar)
+    {
+        var dir = Path.Combine(_root, "game");
+        Directory.CreateDirectory(dir);
+        var dll = Path.Combine(dir, "nvngx_dlssnr.dll");
+        File.WriteAllBytes(dll, new byte[] { 1 });
+        if (sidecar) File.WriteAllText(dll + ".dlss5oneclick", "dlssnr-310.8.SF-v2");
+        var game = new Game { Name = "Spiel", InstallDir = dir, Platform = GamePlatform.Steam };
+        game.Dlls.Add(new InstalledDll { Kind = DlssDllKind.NeuralRendering, Path = dll, Version = "310.8.SF.0" });
+        return (game, dll);
+    }
+
+    private NeuralSwap.Core.Library.DllLibrary LibraryWith31091600()
+    {
+        var library = new NeuralSwap.Core.Library.DllLibrary(Path.Combine(_root, "lib"));
+        var dir = Path.Combine(library.Root, "nvngx_dlssnr.dll", "310.9.16.0");
+        Directory.CreateDirectory(dir);
+        File.WriteAllBytes(Path.Combine(dir, "nvngx_dlssnr.dll"), new byte[] { 9, 9 });
+        return library;
+    }
+
+    [Fact]
+    public void KeepsToolModelOnOlderGpus()
+    {
+        var (game, dll) = GameWithToolModel(sidecar: true);
+
+        var result = new OneClickService(LibraryWith31091600(), isRtx50: () => false).UpdateGame(game);
+
+        Assert.True(Assert.Single(result.Swaps).Skipped);
+        Assert.Equal(new byte[] { 1 }, File.ReadAllBytes(dll));
+    }
+
+    [Fact]
+    public void UsesNewestModelOnRtx50()
+    {
+        var (game, dll) = GameWithToolModel(sidecar: true);
+
+        var result = new OneClickService(LibraryWith31091600(), isRtx50: () => true).UpdateGame(game);
+
+        Assert.False(Assert.Single(result.Swaps).Skipped);
+        Assert.Equal(new byte[] { 9, 9 }, File.ReadAllBytes(dll));
+        Assert.True(File.Exists(dll + ".nsbak"));
+    }
+
+    [Fact]
+    public void SwapsNonToolModelRegardlessOfGpu()
+    {
+        var (game, dll) = GameWithToolModel(sidecar: false);
+
+        new OneClickService(LibraryWith31091600(), isRtx50: () => false).UpdateGame(game);
+
+        Assert.Equal(new byte[] { 9, 9 }, File.ReadAllBytes(dll));
     }
 }
