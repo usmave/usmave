@@ -54,6 +54,23 @@ public sealed class IniFile
         _lines.Insert(end, $"{key}={value}");
     }
 
+    /// <summary>Entfernt einen Schlüssel; die Sektion bleibt bestehen.</summary>
+    public bool Remove(string section, string key)
+    {
+        var (start, end) = SectionRange(section);
+        if (start < 0) return false;
+        for (var i = start + 1; i < end; i++)
+        {
+            if (TryParseKey(_lines[i], out var k, out _) &&
+                k.Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                _lines.RemoveAt(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>(Index der Sektionszeile, Index hinter dem letzten Sektionsinhalt).</summary>
     private (int start, int end) SectionRange(string section)
     {

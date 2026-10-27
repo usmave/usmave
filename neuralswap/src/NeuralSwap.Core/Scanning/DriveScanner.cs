@@ -55,11 +55,14 @@ public sealed class DriveScanner
                 {
                     var name = Path.GetFileName(gameDir);
                     if (IgnoredNames.Contains(name)) continue;
+                    // Steam-Bibliotheken (z. B. E:\Games\SteamLibrary) deckt der Steam-Scanner ab.
+                    if (Directory.Exists(Path.Combine(gameDir, "steamapps"))) continue;
                     games.Add(new Game
                     {
                         Name = name,
                         InstallDir = gameDir,
                         Platform = GamePlatform.Manual,
+                        AutoDetected = true,
                     });
                 }
             }

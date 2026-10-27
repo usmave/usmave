@@ -32,6 +32,24 @@ public static class FileUnlocker
         return ok;
     }
 
+    /// <summary>
+    /// Entsperrt einen Mod-Ordner für Installationen: den Ordner selbst und die
+    /// typischen Mod-Dateien darin (nicht rekursiv – Game-Pass-Ordner sind groß).
+    /// </summary>
+    public static void TryUnlockForMods(string dir)
+    {
+        if (!OperatingSystem.IsWindows() || !Directory.Exists(dir)) return;
+
+        Run("takeown", $"/F \"{dir}\"");
+        Run("icacls", $"\"{dir}\" /grant {AdminsSid}:F");
+        foreach (var pattern in new[] { "*.ini", "*.dll", "*.addon64", "*.cfg", "*.log" })
+        {
+            if (!Directory.EnumerateFiles(dir, pattern).Any()) continue;
+            Run("takeown", $"/F \"{Path.Combine(dir, pattern)}\"");
+            Run("icacls", $"\"{Path.Combine(dir, pattern)}\" /grant {AdminsSid}:F");
+        }
+    }
+
     private static bool Run(string fileName, string arguments)
     {
         try

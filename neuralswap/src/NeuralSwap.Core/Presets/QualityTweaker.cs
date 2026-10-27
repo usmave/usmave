@@ -65,24 +65,14 @@ public static class QualityTweaker
         if (sharpness is < 0 or > 1)
             return new TweakResult(false, "Schärfe muss zwischen 0 und 1 liegen.", null);
 
-        var candidateDirs = game.Dlls
-            .Select(d => Path.GetDirectoryName(d.Path)!)
-            .Append(game.InstallDir)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Where(Directory.Exists)
-            .ToList();
-
-        var optiScalerIni = candidateDirs
-            .Select(dir => Path.Combine(dir, "OptiScaler.ini"))
-            .FirstOrDefault(File.Exists);
+        var optiScalerIni = PresetForcer.FindOptiScalerIni(game);
         if (optiScalerIni != null)
             return ApplyOptiScaler(optiScalerIni, mode, sharpness);
 
-        var tweaksIni = candidateDirs
-            .Select(dir => Path.Combine(dir, "dlsstweaks.ini"))
-            .FirstOrDefault(File.Exists)
-            ?? Path.Combine(candidateDirs.FirstOrDefault() ?? game.InstallDir, "dlsstweaks.ini");
-        return ApplyDlssTweaks(tweaksIni, mode, sharpness, created: !File.Exists(tweaksIni));
+        return new TweakResult(false,
+            "Kein OptiScaler im Spiel – Stärke und Schärfe lassen sich dann über die NVIDIA App einstellen " +
+            "(Grafik → Programmeinstellungen → DLSS-Override → Super Resolution). Alternativ OptiScaler installieren.",
+            null);
     }
 
     private static TweakResult ApplyOptiScaler(string iniPath, QualityMode mode, double? sharpness)
@@ -116,47 +106,6 @@ public static class QualityTweaker
             var what = mode == QualityMode.GameDefault ? "Stärke-Override deaktiviert" : $"Stärke {mode} (Faktor {Ratio(mode):0.0})";
             if (sharpness.HasValue) what += $", Schärfe {sharpness:P0}";
             return new TweakResult(true, $"{what} über OptiScaler.ini gesetzt. Feintuning im Spiel: Einfg-Taste öffnet das OptiScaler-Menü.", iniPath);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return new TweakResult(false, $"Konnte {iniPath} nicht schreiben: {ex.Message}", null);
-        }
-    }
-
-    private static TweakResult ApplyDlssTweaks(string iniPath, QualityMode mode, double? sharpness, bool created)
-    {
-        try
-        {
-            var ini = IniFile.Load(iniPath);
-
-            if (mode == QualityMode.GameDefault)
-            {
-                ini.Set("DLSSQualityLevels", "Enable", "false");
-                ini.Set("DLSS", "ForceDLAA", "false");
-            }
-            else if (mode == QualityMode.Dlaa)
-            {
-                ini.Set("DLSS", "ForceDLAA", "true");
-                ini.Set("DLSSQualityLevels", "Enable", "false");
-            }
-            else
-            {
-                var fraction = Fraction(mode).ToString("0.0#####", CultureInfo.InvariantCulture);
-                ini.Set("DLSS", "ForceDLAA", "false");
-                ini.Set("DLSSQualityLevels", "Enable", "true");
-                foreach (var key in new[] { "UltraQuality", "Quality", "Balanced", "Performance", "UltraPerformance" })
-                    ini.Set("DLSSQualityLevels", key, fraction);
-            }
-
-            ini.Save(iniPath);
-
-            var what = mode == QualityMode.GameDefault ? "Stärke-Override deaktiviert" : $"Stärke {mode}";
-            var note = created
-                ? " Hinweis: dlsstweaks.ini wurde neu angelegt – damit sie greift, muss der DLSSTweaks-Loader im Spielordner installiert sein (oder OptiScaler installieren, das kann die App)."
-                : string.Empty;
-            if (sharpness.HasValue)
-                note += " Schärfe wird von DLSSTweaks nicht unterstützt – dafür OptiScaler installieren.";
-            return new TweakResult(true, $"{what} über dlsstweaks.ini gesetzt.{note}", iniPath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

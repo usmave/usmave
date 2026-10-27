@@ -21,8 +21,8 @@
                 <Button x:Name="AddFolderButton" Click="AddFolderButton_Click">➕ Spielordner hinzufügen…</Button>
             </StackPanel>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <CheckBox x:Name="ForcePresetCheck" VerticalAlignment="Center" Margin="0,0,6,0" IsChecked="True">Preset erzwingen:</CheckBox>
-                <ComboBox x:Name="PresetCombo" VerticalAlignment="Center"/>
+                <CheckBox x:Name="ForcePresetCheck" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="Wirkt nur in Spielen mit OptiScaler; sonst das Preset in der NVIDIA App setzen.">Upscaling-Preset erzwingen:</CheckBox>
+                <ComboBox x:Name="PresetCombo" VerticalAlignment="Center" Width="220"/>
             </StackPanel>
         </DockPanel>
 
@@ -67,33 +67,35 @@
                             <TextBlock x:Name="GameWarning" Foreground="{StaticResource WarnBrush}" FontSize="12"
                                        Margin="0,0,0,8" Visibility="Collapsed"
                                        Text="⚠ Xbox/Game-Pass-Titel: Geschützte Dateien werden per Besitzübernahme entsperrt – das klappt nicht bei jedem Spiel, und App-Updates des Spiels setzen die Mods zurück."/>
+                            <TextBlock x:Name="NrStatusText" Foreground="{StaticResource TextDimBrush}" FontSize="12"
+                                       Margin="0,0,0,4" TextWrapping="Wrap"/>
                         </StackPanel>
                         <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Text="Stärke:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ComboBox x:Name="QualityCombo" Width="180" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                                <CheckBox x:Name="SharpenCheck" VerticalAlignment="Center" Margin="0,0,6,0">Schärfe:</CheckBox>
+                            <TextBlock Text="Neural Rendering – fotorealistische Gesichter &amp; Beleuchtung (über DLSS5oneclick)"
+                                       Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,4"/>
+                            <WrapPanel Margin="0,0,0,10">
+                                <Button x:Name="NeuralInstallButton" Style="{StaticResource AccentButton}" Margin="0,0,8,6" Click="NeuralInstallButton_Click">🧠 Installieren / Aktualisieren</Button>
+                                <Button x:Name="NeuralDiagnoseButton" Margin="0,0,8,6" Click="NeuralDiagnoseButton_Click">🩺 Diagnose</Button>
+                                <Button x:Name="NeuralNextButton" Margin="0,0,8,6" Click="NeuralNextButton_Click">⏭ Klappt nicht? Nächstes Setup</Button>
+                                <Button x:Name="NeuralHooksButton" Margin="0,0,8,6" Click="NeuralHooksButton_Click">🔧 EnableHooks…</Button>
+                                <Button x:Name="NeuralRemoveButton" Margin="0,0,8,6" Click="NeuralRemoveButton_Click">🗑 Entfernen</Button>
+                            </WrapPanel>
+                            <WrapPanel Margin="0,0,0,4">
+                                <TextBlock Text="Stärke:" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                <ComboBox x:Name="QualityCombo" Width="180" VerticalAlignment="Center" Margin="0,0,16,6"/>
+                                <CheckBox x:Name="SharpenCheck" VerticalAlignment="Center" Margin="0,0,6,6">Schärfe:</CheckBox>
                                 <Slider x:Name="SharpnessSlider" Width="130" Minimum="0" Maximum="1" Value="0.3"
-                                        TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                        TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,0,0,6"
                                         ValueChanged="SharpnessSlider_ValueChanged"/>
-                                <TextBlock x:Name="SharpnessLabel" Text="30 %" VerticalAlignment="Center" Margin="6,0,16,0" Width="44"/>
-                                <Button x:Name="ApplyTweaksButton" Click="ApplyTweaksButton_Click">🖼 Bild-Einstellungen anwenden</Button>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <Button x:Name="NeuralButton" Style="{StaticResource AccentButton}" Click="NeuralButton_Click">🧠 Neural Rendering installieren (Gesichter &amp; Beleuchtung)</Button>
-                                <TextBlock Text="Modell-Auflösung:" VerticalAlignment="Center" Margin="8,0,6,0"/>
-                                <ComboBox x:Name="NrScaleCombo" Width="90" VerticalAlignment="Center" SelectedIndex="1">
-                                    <ComboBoxItem>100 %</ComboBoxItem>
-                                    <ComboBoxItem>75 %</ComboBoxItem>
-                                    <ComboBoxItem>50 %</ComboBoxItem>
-                                </ComboBox>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <Button x:Name="UpdateGameButton" Style="{StaticResource AccentButton}" Click="UpdateGameButton_Click">⚡ Dieses Spiel aktualisieren</Button>
-                                <Button x:Name="RestoreButton" Click="RestoreButton_Click">↩ Originale wiederherstellen</Button>
-                                <Button x:Name="PresetButton" Click="PresetButton_Click">🎛 Nur Preset erzwingen</Button>
-                                <Button x:Name="OptiScalerButton" Click="OptiScalerButton_Click">🧩 OptiScaler installieren</Button>
-                            </StackPanel>
+                                <TextBlock x:Name="SharpnessLabel" Text="30 %" VerticalAlignment="Center" Margin="6,0,16,6" Width="44"/>
+                                <Button x:Name="ApplyTweaksButton" Margin="0,0,8,6" Click="ApplyTweaksButton_Click">🖼 Bild-Einstellungen anwenden</Button>
+                            </WrapPanel>
+                            <WrapPanel>
+                                <Button x:Name="UpdateGameButton" Style="{StaticResource AccentButton}" Margin="0,0,8,6" Click="UpdateGameButton_Click">⚡ DLLs dieses Spiels aktualisieren</Button>
+                                <Button x:Name="RestoreButton" Margin="0,0,8,6" Click="RestoreButton_Click">↩ Original-DLLs wiederherstellen</Button>
+                                <Button x:Name="PresetButton" Margin="0,0,8,6" Click="PresetButton_Click">🎛 Nur Preset setzen</Button>
+                                <Button x:Name="OptiScalerButton" Margin="0,0,8,6" Click="OptiScalerButton_Click">🧩 OptiScaler installieren</Button>
+                            </WrapPanel>
                         </StackPanel>
                         <ListBox x:Name="DllList" Margin="0,8,0,0" Background="{StaticResource PanelLightBrush}">
                             <ListBox.ItemTemplate>

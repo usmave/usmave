@@ -66,7 +66,28 @@ public sealed class Game
     /// <summary>Xbox/Game-Pass-Titel sind durch UWP-Schutz oft nicht modbar.</summary>
     public bool LimitedModSupport => Platform == GamePlatform.Xbox;
 
+    /// <summary>
+    /// Vom Laufwerks-Scan geraten (kein Launcher-Eintrag, kein manueller Ordner).
+    /// Solche Einträge werden verworfen, wenn sie andere Spiele enthalten.
+    /// </summary>
+    public bool AutoDetected { get; init; }
+
     public List<InstalledDll> Dlls { get; } = new();
+
+    /// <summary>
+    /// Die eigentliche Spiel-EXE (bei Unreal-Spielen die Shipping-EXE unter
+    /// Binaries\Win64 bzw. WinGDK, nicht der kleine Starter im Hauptordner).
+    /// </summary>
+    public string? MainExe { get; set; }
+
+    /// <summary>True, wenn das Spiel DLSS über NVIDIA Streamline (sl.interposer.dll) lädt.</summary>
+    public bool UsesStreamline { get; set; }
+
+    /// <summary>
+    /// Ordner, in den Proxy-DLLs (ReShade, OptiScaler), Add-ons und deren
+    /// Konfiguration gehören: der Ordner der Spiel-EXE, sonst der Spielordner.
+    /// </summary>
+    public string ModDir => MainExe != null ? System.IO.Path.GetDirectoryName(MainExe)! : InstallDir;
 
     public override string ToString() => $"{Name} [{Platform}]";
 }

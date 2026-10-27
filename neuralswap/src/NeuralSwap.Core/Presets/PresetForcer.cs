@@ -1,85 +1,95 @@
+using System.Globalization;
 using NeuralSwap.Core.Models;
 
 namespace NeuralSwap.Core.Presets;
 
+/// <summary>DLSS-Upscaling-Preset (Super Resolution), das erzwungen werden soll.</summary>
+public enum PresetChoice
+{
+    /// <summary>Nichts erzwingen – Spiel bzw. DLL entscheiden.</summary>
+    GameDefault,
+
+    /// <summary>Neuestes Preset, das die DLL kennt (OptiScaler „Latest“).</summary>
+    Latest,
+
+    /// <summary>Preset M – 2. Gen. Transformer (DLSS 4.5), Standard für Performance.</summary>
+    M,
+
+    /// <summary>Preset L – 2. Gen. Transformer (DLSS 4.5), Standard für Ultra Performance.</summary>
+    L,
+
+    /// <summary>Preset K – 1. Gen. Transformer (DLSS 4), Standard für DLAA/Qualität/Ausgewogen.</summary>
+    K,
+}
+
 /// <summary>
-/// Erzwingt ein DLSS-Render-Preset pro Spiel (z. B. Preset B = neues
-/// Neural-Rendering-Modell), indem die Konfiguration des im Spiel vorhandenen
-/// Mod-Loaders angepasst wird:
-///  - OptiScaler.ini  → [Dlss] RenderPresetOverride / RenderPresetForAll
-///  - dlsstweaks.ini  → [DLSSPresets] Global
-/// Ist keiner von beiden vorhanden, wird eine dlsstweaks.ini vorbereitet und
-/// das Ergebnis weist darauf hin, dass zusätzlich der DLSSTweaks-Loader oder
-/// der Override der NVIDIA App nötig ist.
+/// Erzwingt ein DLSS-Preset über die OptiScaler.ini des Spiels. OptiScaler liest
+/// die Werte als Zahl (NGX-Enum: K=11, L=12, M=13; „Latest“ = 0x00FFFFFF) – so im
+/// OptiScaler-Quelltext (Config.cpp/menu_common.cpp) nachgeprüft. Ohne OptiScaler
+/// wird nichts geschrieben; dann ist der Treiber-Override der NVIDIA App der Weg.
+/// Hinweis: Das Neural-Rendering-Modell wird nicht hier, sondern im
+/// renodx-dlss5-Overlay gewählt.
 /// </summary>
 public static class PresetForcer
 {
-    public static readonly string[] KnownPresets = { "A", "B", "C", "D", "E", "F", "J", "K" };
+    public const int OptiScalerLatest = 0x00FFFFFF;
 
-    public sealed record PresetResult(bool Success, string Message, string? ConfigFile);
+    public sealed record PresetResult(bool Applied, string Message, string? ConfigFile);
 
-    public static PresetResult Force(Game game, string preset)
+    public static int? OptiScalerValue(PresetChoice choice) => choice switch
     {
-        preset = preset.Trim().ToUpperInvariant();
-        if (!KnownPresets.Contains(preset))
-            return new PresetResult(false, $"Unbekanntes Preset \"{preset}\". Erlaubt: {string.Join(", ", KnownPresets)}.", null);
+        PresetChoice.Latest => OptiScalerLatest,
+        PresetChoice.M => 13,
+        PresetChoice.L => 12,
+        PresetChoice.K => 11,
+        _ => null,
+    };
 
-        // Konfig-Dateien liegen neben der ausführbaren Datei; wir nehmen die
-        // Ordner, in denen DLSS-DLLs gefunden wurden, plus den Spielordner.
-        var candidateDirs = game.Dlls
-            .Select(d => Path.GetDirectoryName(d.Path)!)
+    public static string Label(PresetChoice choice) => choice switch
+    {
+        PresetChoice.GameDefault => "Spiel entscheidet",
+        PresetChoice.Latest => "Neuestes (Latest)",
+        PresetChoice.M => "M – DLSS 4.5 (Performance)",
+        PresetChoice.L => "L – DLSS 4.5 (Ultra Perf.)",
+        PresetChoice.K => "K – DLSS 4 (Qualität/DLAA)",
+        _ => choice.ToString(),
+    };
+
+    public static string? FindOptiScalerIni(Game game) =>
+        new[] { game.ModDir }
+            .Concat(game.Dlls.Select(d => Path.GetDirectoryName(d.Path)!))
             .Append(game.InstallDir)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .Select(dir => Path.Combine(dir, "OptiScaler.ini"))
+            .FirstOrDefault(File.Exists);
 
-        foreach (var dir in candidateDirs)
-        {
-            var optiScalerIni = Directory.Exists(dir)
-                ? Directory.EnumerateFiles(dir, "OptiScaler.ini").FirstOrDefault()
-                : null;
-            if (optiScalerIni != null)
-            {
-                var ini = IniFile.Load(optiScalerIni);
-                ini.Set("DLSS", "RenderPresetOverride", "true");
-                ini.Set("DLSS", "RenderPresetForAll", preset);
-                ini.Save(optiScalerIni);
-                return new PresetResult(true, $"Preset {preset} über OptiScaler.ini erzwungen.", optiScalerIni);
-            }
-        }
+    public static PresetResult Apply(Game game, PresetChoice choice)
+    {
+        var path = FindOptiScalerIni(game);
+        if (path == null)
+            return new PresetResult(false,
+                "kein OptiScaler im Spiel – Preset lässt sich hier nur per NVIDIA App (Grafik → DLSS-Override → Modell-Presets) setzen.",
+                null);
 
-        foreach (var dir in candidateDirs)
-        {
-            var tweaksIni = Directory.Exists(dir)
-                ? Directory.EnumerateFiles(dir, "dlsstweaks.ini").FirstOrDefault()
-                : null;
-            if (tweaksIni != null)
-            {
-                var ini = IniFile.Load(tweaksIni);
-                ini.Set("DLSSPresets", "Global", preset);
-                ini.Save(tweaksIni);
-                return new PresetResult(true, $"Preset {preset} über dlsstweaks.ini erzwungen.", tweaksIni);
-            }
-        }
-
-        // Kein Loader gefunden: Konfiguration vorbereiten und ehrlich sagen,
-        // dass sie allein noch nicht greift.
-        var targetDir = candidateDirs.FirstOrDefault(Directory.Exists) ?? game.InstallDir;
-        var newIni = Path.Combine(targetDir, "dlsstweaks.ini");
         try
         {
-            var ini = IniFile.Load(newIni);
-            ini.Set("DLSSPresets", "Global", preset);
-            ini.Save(newIni);
+            var ini = IniFile.Load(path);
+            var value = OptiScalerValue(choice);
+            if (value == null)
+            {
+                ini.Set("DLSS", "RenderPresetOverride", "false");
+            }
+            else
+            {
+                ini.Set("DLSS", "RenderPresetOverride", "true");
+                ini.Set("DLSS", "RenderPresetForAll", value.Value.ToString(CultureInfo.InvariantCulture));
+            }
+            ini.Save(path);
+            return new PresetResult(true, $"Preset „{Label(choice)}“ in OptiScaler.ini gesetzt.", path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return new PresetResult(false, $"Konnte {newIni} nicht schreiben: {ex.Message}", null);
+            return new PresetResult(false, $"OptiScaler.ini nicht beschreibbar: {ex.Message}", null);
         }
-
-        return new PresetResult(true,
-            $"dlsstweaks.ini mit Preset {preset} angelegt. Hinweis: Damit sie greift, muss zusätzlich " +
-            "DLSSTweaks (nvngx-Loader) im Spielordner installiert sein – alternativ das Preset über " +
-            "die NVIDIA App (Treiber-Override) setzen oder OptiScaler installieren.",
-            newIni);
     }
 }

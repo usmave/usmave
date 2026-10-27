@@ -41,21 +41,45 @@ public sealed class GameScanner
             });
         }
 
-        // Duplikate (gleicher Ordner über mehrere Quellen) entfernen.
-        var distinct = games
-            .GroupBy(g => Path.TrimEndingDirectorySeparator(g.InstallDir), StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+        var distinct = Merge(games);
 
-        progress?.Report("Suche DLSS-DLLs in den Spielordnern …");
+        progress?.Report("Suche DLSS-DLLs und Spiel-EXE in den Spielordnern …");
         foreach (var game in distinct)
-        {
-            game.Dlls.Clear();
-            game.Dlls.AddRange(DlssDllLocator.Locate(game.InstallDir));
-        }
+            Refresh(game);
 
         return distinct;
+    }
+
+    /// <summary>Liest DLLs, Spiel-EXE und Streamline-Nutzung eines Spiels neu ein.</summary>
+    public static void Refresh(Game game)
+    {
+        game.Dlls.Clear();
+        game.Dlls.AddRange(DlssDllLocator.Locate(game.InstallDir));
+        GameExeLocator.Inspect(game);
+    }
+
+    /// <summary>
+    /// Entfernt Duplikate (gleicher Ordner über mehrere Quellen) und geratene
+    /// Laufwerks-Einträge, die selbst andere Spiele enthalten – etwa
+    /// E:\Games\SteamLibrary, das sonst als ein „Spiel“ mit den DLLs aller
+    /// darin liegenden Steam-Spiele erschiene.
+    /// </summary>
+    public static List<Game> Merge(IEnumerable<Game> games)
+    {
+        static string Key(Game g) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(g.InstallDir));
+
+        var distinct = games
+            .GroupBy(Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderBy(x => x.AutoDetected).First())
+            .ToList();
+
+        var keys = distinct.Select(Key).ToList();
+        return distinct
+            .Where(g => !g.AutoDetected || !keys.Any(other =>
+                other.Length > Key(g).Length &&
+                other.StartsWith(Key(g) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
     }
 
     private static void TryAdd(List<Game> games, Func<IReadOnlyList<Game>> scan)

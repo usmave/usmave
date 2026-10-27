@@ -1,8 +1,10 @@
 using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 using NeuralSwap.Core;
+using NeuralSwap.Core.Install;
 using NeuralSwap.Core.Library;
 using NeuralSwap.Core.Models;
 using NeuralSwap.Core.NeuralRendering;
@@ -19,6 +21,10 @@ public partial class MainWindow : Window
     private readonly DllLibrary _library = new();
     private readonly ManifestService _manifests = new();
     private readonly OneClickService _oneClick;
+    private readonly HttpClient _http = CreateHttpClient();
+    private readonly IProcessRunner _runner = new ProcessRunner();
+    private readonly OptiScalerInstaller _opti;
+    private NeuralRenderingService? _nr;
 
     private List<Game> _games = new();
     private VersionManifest? _manifest;
@@ -26,21 +32,41 @@ public partial class MainWindow : Window
 
     private static string LocalManifestPath => Path.Combine(AppContext.BaseDirectory, "dll-manifest.json");
 
+    private sealed record PresetOption(PresetChoice Choice, string Label);
+
+    private static readonly PresetOption[] PresetOptions =
+        Enum.GetValues<PresetChoice>().Select(c => new PresetOption(c, PresetForcer.Label(c))).ToArray();
+
     public MainWindow()
     {
         InitializeComponent();
         _oneClick = new OneClickService(_library, _manifests);
+        _opti = new OptiScalerInstaller(_http);
 
         QualityCombo.ItemsSource = QualityOptions.Select(o => o.Label).ToList();
         QualityCombo.SelectedIndex = 0;
 
-        PresetCombo.ItemsSource = PresetForcer.KnownPresets;
-        PresetCombo.SelectedItem = PresetForcer.KnownPresets.Contains(_settings.PreferredPreset)
-            ? _settings.PreferredPreset : "B";
+        PresetCombo.ItemsSource = PresetOptions;
+        PresetCombo.DisplayMemberPath = nameof(PresetOption.Label);
+        PresetCombo.SelectedItem = PresetOptions.First(o => o.Choice == _settings.PreferredPresetChoice);
         ForcePresetCheck.IsChecked = _settings.ForcePresetOnOneClick;
 
         Log("NeuralSwap gestartet. Erst „Spiele scannen“, dann „One-Click“. " +
             "DLL-Versionen verwaltest du unter „DLL-Bibliothek…“.");
+        if (_settings.PresetMigrated)
+        {
+            Log("Hinweis: Das bisher gespeicherte Preset „B“ war fürs Upscaling falsch (Preset B ist in aktuellen DLLs " +
+                "entfernt) und hat nie gewirkt. Die Einstellung wurde zurückgesetzt; Presets wirken nur mit OptiScaler, " +
+                "sonst in der NVIDIA App setzen.");
+            _settings.Save();
+        }
+    }
+
+    private static HttpClient CreateHttpClient()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("NeuralSwap/0.2");
+        return http;
     }
 
     // ----- Hilfsklassen für die Listen -----
@@ -70,8 +96,8 @@ public partial class MainWindow : Window
 
     // ----- Zustand -----
 
-    private string SelectedPreset => PresetCombo.SelectedItem as string ?? "B";
-    private string? PresetIfForced => ForcePresetCheck.IsChecked == true ? SelectedPreset : null;
+    private PresetChoice SelectedPreset => (PresetCombo.SelectedItem as PresetOption)?.Choice ?? PresetChoice.Latest;
+    private PresetChoice? PresetIfForced => ForcePresetCheck.IsChecked == true ? SelectedPreset : null;
 
     private Game? SelectedGame => (GamesList.SelectedItem as GameRow)?.Game;
 
@@ -80,22 +106,31 @@ public partial class MainWindow : Window
         _busy = busy;
         foreach (var button in new[] { ScanButton, OneClickButton, LibraryButton, AddFolderButton,
                                        UpdateGameButton, RestoreButton, PresetButton, OptiScalerButton,
-                                       ApplyTweaksButton, NeuralButton })
+                                       ApplyTweaksButton, NeuralInstallButton, NeuralDiagnoseButton,
+                                       NeuralNextButton, NeuralHooksButton, NeuralRemoveButton })
             button.IsEnabled = !busy;
         Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
+        if (!busy) RefreshDetail();
     }
 
     private void SaveSettings()
     {
-        _settings.PreferredPreset = SelectedPreset;
+        _settings.PreferredPresetChoice = SelectedPreset;
         _settings.ForcePresetOnOneClick = ForcePresetCheck.IsChecked == true;
         _settings.Save();
+    }
+
+    private async Task<NeuralRenderingService> NrAsync()
+    {
+        _manifest ??= await _manifests.LoadAsync(_settings.ManifestUrl, LocalManifestPath);
+        return _nr ??= new NeuralRenderingService(_http, _runner, _manifest.Dlss5OneClick);
     }
 
     // ----- Spieleliste -----
 
     private void RefreshGamesList()
     {
+        var selected = SelectedGame;
         var filter = SearchBox.Text?.Trim() ?? string.Empty;
         var rows = _games
             .Where(g => filter.Length == 0 || g.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
@@ -103,6 +138,7 @@ public partial class MainWindow : Window
                 $"{g.Platform} · {g.Dlls.Count} DLSS-DLL(s)" + (g.LimitedModSupport ? " · eingeschränkt" : "")))
             .ToList();
         GamesList.ItemsSource = rows;
+        if (selected != null) GamesList.SelectedItem = rows.FirstOrDefault(r => r.Game == selected);
     }
 
     private void RefreshDetail()
@@ -118,20 +154,31 @@ public partial class MainWindow : Window
         NoSelectionText.Visibility = Visibility.Collapsed;
         DetailPanel.Visibility = Visibility.Visible;
         GameTitle.Text = game.Name;
-        GamePath.Text = game.InstallDir;
+        GamePath.Text = game.MainExe ?? game.InstallDir + "  (Spiel-EXE nicht erkannt)";
         GameWarning.Visibility = game.LimitedModSupport ? Visibility.Visible : Visibility.Collapsed;
+
+        var status = NrStatus.Detect(game);
+        NrStatusText.Text = status.Describe();
+        if (!_busy)
+        {
+            NeuralDiagnoseButton.IsEnabled = status.HasNeuralRendering;
+            NeuralNextButton.IsEnabled = status.HasNeuralRendering;
+            NeuralRemoveButton.IsEnabled = status.HasNeuralRendering;
+            NeuralHooksButton.IsEnabled = status.Consumer == NeuralConsumer.RenoDxDlss5;
+        }
+        OptiScalerButton.Content = _opti.TrackerFor(game).IsInstalled ? "🧩 OptiScaler entfernen" : "🧩 OptiScaler installieren";
 
         DllList.ItemsSource = game.Dlls.Count == 0
             ? new List<DllRow> { new("Keine DLSS-DLLs gefunden", "–",
-                "Über „OptiScaler installieren“ lässt sich DLSS ggf. trotzdem nachrüsten.") }
+                "Neural Rendering geht trotzdem (dann über den Feeder); Upscaling ggf. per OptiScaler nachrüsten.") }
             : game.Dlls.Select(d =>
             {
                 var latest = _library.Latest(d.Kind);
-                var status = d.HasBackup ? "getauscht (Backup vorhanden)" : "original";
+                var state = d.HasBackup ? "getauscht (Backup vorhanden)" : "original";
                 if (latest != null && d.Version != null &&
                     DllLibrary.ParseVersion(latest.Version) > DllLibrary.ParseVersion(d.Version))
-                    status += $" · Update auf {latest.Version} verfügbar";
-                return new DllRow(d.Kind.DisplayName(), d.Version ?? "unbekannt", status);
+                    state += $" · Update auf {latest.Version} verfügbar";
+                return new DllRow(d.Kind.DisplayName(), d.Version ?? "unbekannt", state);
             }).ToList();
     }
 
@@ -139,7 +186,27 @@ public partial class MainWindow : Window
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshGamesList();
 
-    // ----- Aktionen -----
+    /// <summary>Führt eine längere Aktion im Hintergrund aus und liest danach das Spiel neu ein.</summary>
+    private async Task RunForGameAsync(Game game, string label, Func<IProgress<string>, Task<string>> action)
+    {
+        if (_busy) return;
+        SetBusy(true);
+        try
+        {
+            var progress = LogProgress();
+            var message = await Task.Run(() => action(progress));
+            Log($"{game.Name}: {message}");
+        }
+        catch (Exception ex) { Log($"{game.Name}: {label} fehlgeschlagen: {ex.Message}"); }
+        finally
+        {
+            await Task.Run(() => GameScanner.Refresh(game));
+            RefreshGamesList();
+            SetBusy(false);
+        }
+    }
+
+    // ----- Aktionen: Scan, One-Click, DLLs -----
 
     private async void ScanButton_Click(object sender, RoutedEventArgs e)
     {
@@ -151,7 +218,6 @@ public partial class MainWindow : Window
             var manualFolders = _settings.ManualFolders.ToList();
             _games = (await Task.Run(() => new GameScanner(manualFolders).ScanAll(progress))).ToList();
             RefreshGamesList();
-            RefreshDetail();
             var withDlss = _games.Count(g => g.Dlls.Count > 0);
             Log($"Scan fertig: {_games.Count} Spiele gefunden, davon {withDlss} mit DLSS-DLLs.");
 
@@ -160,11 +226,8 @@ public partial class MainWindow : Window
             var games = _games;
             var harvested = await Task.Run(() => LibraryHarvester.Harvest(games, _library, progress));
             if (harvested.Count > 0)
-            {
                 Log($"{harvested.Count} neue DLL-Version(en) aus deinen Spielen geerntet – " +
                     "per One-Click jetzt in allen Spielen nutzbar.");
-                RefreshDetail();
-            }
         }
         catch (Exception ex) { Log("Scan fehlgeschlagen: " + ex.Message); }
         finally { SetBusy(false); }
@@ -192,7 +255,6 @@ public partial class MainWindow : Window
             var failed = results.SelectMany(r => r.Swaps).Count(s => !s.Success);
             Log($"One-Click fertig: {swapped} DLL(s) aktualisiert, {failed} Fehler.");
             RefreshGamesList();
-            RefreshDetail();
         }
         catch (Exception ex) { Log("One-Click fehlgeschlagen: " + ex.Message); }
         finally { SetBusy(false); }
@@ -202,18 +264,14 @@ public partial class MainWindow : Window
     {
         var game = SelectedGame;
         if (_busy || game == null) return;
-        SetBusy(true);
         SaveSettings();
-        try
+        var preset = PresetIfForced;
+        await RunForGameAsync(game, "Aktualisierung", async progress =>
         {
             await EnsureManifestAndLibraryAsync();
-            var preset = PresetIfForced;
-            var progress = LogProgress();
-            await Task.Run(() => _oneClick.UpdateGame(game, preset, progress));
-            RefreshDetail();
-        }
-        catch (Exception ex) { Log("Aktualisierung fehlgeschlagen: " + ex.Message); }
-        finally { SetBusy(false); }
+            var result = _oneClick.UpdateGame(game, preset, progress);
+            return $"{result.Swaps.Count(s => s.Success && !s.Skipped)} DLL(s) aktualisiert.";
+        });
     }
 
     private void RestoreButton_Click(object sender, RoutedEventArgs e)
@@ -247,81 +305,120 @@ public partial class MainWindow : Window
         var game = SelectedGame;
         if (_busy || game == null) return;
         SaveSettings();
-        Log($"{game.Name}: {PresetForcer.Force(game, SelectedPreset).Message}");
+        Log($"{game.Name}: {PresetForcer.Apply(game, SelectedPreset).Message}");
     }
+
+    // ----- Aktionen: OptiScaler -----
 
     private async void OptiScalerButton_Click(object sender, RoutedEventArgs e)
     {
         var game = SelectedGame;
         if (_busy || game == null) return;
-        if (MessageBox.Show(
-                $"OptiScaler in „{game.Name}“ installieren?\n\nDas lädt das neueste Release von GitHub und " +
-                $"legt es als {_settings.OptiScalerProxy} in den Spielordner. Nur für Singleplayer-Spiele " +
-                "empfohlen – in Multiplayer-Titeln kann DLL-Injektion zu Anti-Cheat-Sperren führen!",
-                "OptiScaler installieren", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+
+        if (_opti.TrackerFor(game).IsInstalled)
+        {
+            if (Ask($"OptiScaler aus „{game.Name}“ entfernen? Der Originalzustand wird wiederhergestellt.") )
+                await RunForGameAsync(game, "OptiScaler entfernen", _ => Task.FromResult(_opti.Uninstall(game).Message));
+            return;
+        }
+
+        if (!Ask($"OptiScaler in „{game.Name}“ installieren?\n\nLädt das neueste OptiScaler-Release von GitHub und legt es " +
+                 "neben die Spiel-EXE (unter einem freien Proxy-Namen – vorhandene Dateien wie ReShade werden nie überschrieben). " +
+                 "Gedacht für Spiele ohne DLSS. Nicht zusammen mit Neural Rendering verwenden. Nur Singleplayer!"))
             return;
 
-        SetBusy(true);
-        try
+        await RunForGameAsync(game, "OptiScaler-Installation", async progress =>
         {
-            await EnsureManifestAndLibraryAsync();
-            var repo = _manifest?.OptiScalerRepo ?? "optiscaler/OptiScaler";
-            var result = await new OptiScalerInstaller().InstallAsync(game, repo, _settings.OptiScalerProxy, LogProgress());
-            Log($"{game.Name}: {result.Message}");
-        }
-        catch (Exception ex) { Log("OptiScaler-Installation fehlgeschlagen: " + ex.Message); }
-        finally { SetBusy(false); }
+            _manifest ??= await _manifests.LoadAsync(_settings.ManifestUrl, LocalManifestPath);
+            var result = await _opti.InstallAsync(game, _manifest.OptiScalerRepo, _settings.OptiScalerProxy, progress);
+            return result.Message;
+        });
     }
 
-    private async void NeuralButton_Click(object sender, RoutedEventArgs e)
+    // ----- Aktionen: Neural Rendering -----
+
+    private async void NeuralInstallButton_Click(object sender, RoutedEventArgs e)
     {
         var game = SelectedGame;
         if (_busy || game == null) return;
 
-        var installDir = game.Dlls
-            .Select(d => System.IO.Path.GetDirectoryName(d.Path)!)
-            .FirstOrDefault() ?? game.InstallDir;
-
-        if (NeuralRenderingInstaller.IsInstalled(installDir))
-        {
-            if (MessageBox.Show(
-                    $"Neural Rendering ist in „{game.Name}“ bereits installiert.\n\nEntfernen?",
-                    "Neural Rendering", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
-                Log($"{game.Name}: {NeuralRenderingInstaller.Uninstall(installDir).Message}");
-            return;
-        }
-
-        var routeA = game.Dlls.Any(d => d.Kind == DlssDllKind.SuperResolution);
-        var route = routeA
-            ? "RenoDX-Route (Spiel hat natives DLSS)"
-            : "Feeder-Route (DLSS5-Feeder + LumeniteFX, Spiel ohne natives DLSS)";
-        if (MessageBox.Show(
-                $"Neural Rendering (fotorealistische Gesichter & Beleuchtung) in „{game.Name}“ installieren?\n\n" +
-                $"Methode: {route}.\n" +
-                "Es werden Community-Komponenten von GitHub geladen (experimentell, nicht von NVIDIA!) und " +
-                "ReShade (Add-on-Build) wird bei Bedarf automatisch von reshade.me mitinstalliert. " +
-                "Die nvngx_dlssnr.dll kommt aus deiner DLL-Bibliothek – für RTX 20–40 brauchst du den " +
-                "ShortFuse-Kompatibilitäts-Build, für RTX 50 das Original. Nur für Singleplayer-Spiele!",
-                "Neural Rendering installieren", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        var status = NrStatus.Detect(game);
+        if (!status.HasNeuralRendering &&
+            !Ask($"Neural Rendering (fotorealistische Gesichter & Beleuchtung) in „{game.Name}“ installieren?\n\n" +
+                 "NeuralSwap nutzt dafür DLSS5oneclick (Open Source, MIT): Es wählt das passende Setup für dieses Spiel " +
+                 "selbst (ReShade + renodx-dlss5, bei Vulkan-Spielen OptiScaler-NR, bei Spielen ohne DLSS den Feeder) und " +
+                 "lädt alles direkt von den Original-Projekten.\n\n" +
+                 "• Das neuronale Modell läuft offiziell nur auf RTX 50.\n" +
+                 "• Nur für Singleplayer-Spiele (Anti-Cheat!).\n" +
+                 "• Lässt sich über „Entfernen“ wieder herausnehmen."))
             return;
 
-        SetBusy(true);
-        try
-        {
-            await EnsureManifestAndLibraryAsync();
-            var options = new NrOptions
-            {
-                WorkingScalePercent = NrScaleCombo.SelectedIndex switch { 0 => 100, 2 => 50, _ => 75 },
-            };
-            var sources = _manifest?.NeuralRendering ?? new NrSources();
-            var result = await new NeuralRenderingInstaller().InstallAsync(game, _library, sources, options, LogProgress());
-            Log($"{game.Name}: {result.Message}");
-        }
-        catch (Exception ex) { Log("Neural-Rendering-Installation fehlgeschlagen: " + ex.Message); }
-        finally { SetBusy(false); }
+        await RunForGameAsync(game, "Neural Rendering", async progress =>
+            (await (await NrAsync()).InstallAsync(game, progress)).Message);
     }
 
-    private async void AddFolderButton_Click(object sender, RoutedEventArgs e)
+    private async void NeuralDiagnoseButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+        await RunForGameAsync(game, "Diagnose", async progress =>
+            (await (await NrAsync()).DiagnoseAsync(game, progress)).Message);
+    }
+
+    private async void NeuralNextButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+        if (!Ask("Das aktuelle Neural-Rendering-Setup herausnehmen und das nächste aus der Liste von DLSS5oneclick " +
+                 "installieren (z. B. ShortFuses Add-on, eine ältere renodx-dlss5-Version oder OptiScaler-NR)?"))
+            return;
+        await RunForGameAsync(game, "Nächstes Setup", async progress =>
+            (await (await NrAsync()).NextSetupAsync(game, progress)).Message);
+    }
+
+    private async void NeuralHooksButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+
+        var current = NrStatus.Detect(game).EnableHooks?.Trim();
+        bool enable;
+        if (current == "1")
+        {
+            if (!Ask("EnableHooks=1 ist gesetzt. Wieder entfernen (z. B. wenn das Spiel seitdem beim Start abstürzt)? " +
+                     "Dann entscheidet das Add-on wieder selbst."))
+                return;
+            enable = false;
+        }
+        else
+        {
+            if (!Ask("Zeigt das Add-on im Spiel (Pos1 → „DLSS 5 Neural Rendering“) den Hinweis " +
+                     "„NR braucht die Streamline-Einstellung … Setze EnableHooks=1“?\n\n" +
+                     "Nur dann EnableHooks=1 setzen – sonst schaltet das Add-on die Hooks bei Bedarf selbst ein, " +
+                     "und der erzwungene Wert kann manche Spiele beim Start abstürzen lassen."))
+                return;
+            enable = true;
+        }
+
+        await RunForGameAsync(game, "EnableHooks", async _ => (await NrAsync()).SetEnableHooks(game, enable).Message);
+    }
+
+    private async void NeuralRemoveButton_Click(object sender, RoutedEventArgs e)
+    {
+        var game = SelectedGame;
+        if (_busy || game == null) return;
+        if (!Ask($"Neural Rendering aus „{game.Name}“ entfernen? (Spiel vorher schließen.)"))
+            return;
+        await RunForGameAsync(game, "Entfernen", async progress =>
+            (await (await NrAsync()).UninstallAsync(game, progress)).Message);
+    }
+
+    private bool Ask(string question) =>
+        MessageBox.Show(this, question, "NeuralSwap", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+
+    // ----- Ordner & Bibliothek -----
+
+    private void AddFolderButton_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
         var dialog = new OpenFolderDialog { Title = "Spielordner auswählen" };
@@ -334,7 +431,6 @@ public partial class MainWindow : Window
         }
         Log($"Ordner hinzugefügt: {dialog.FolderName}");
         ScanButton_Click(sender, e);
-        await Task.CompletedTask;
     }
 
     private async void LibraryButton_Click(object sender, RoutedEventArgs e)

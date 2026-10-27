@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{3AB9468A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeuralSwap.Core.Tests", "tests\NeuralSwap.Core.Tests\NeuralSwap.Core.Tests.csproj", "{065500E8-D9D6-41D4-A301-18B10E94D06F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeuralSwap.Integration", "tests\NeuralSwap.Integration\NeuralSwap.Integration.csproj", "{41B06E0B-B4F5-4398-927A-CE33C78D45F7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{065500E8-D9D6-41D4-A301-18B10E94D06F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{065500E8-D9D6-41D4-A301-18B10E94D06F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{065500E8-D9D6-41D4-A301-18B10E94D06F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{41B06E0B-B4F5-4398-927A-CE33C78D45F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{41B06E0B-B4F5-4398-927A-CE33C78D45F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{41B06E0B-B4F5-4398-927A-CE33C78D45F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{41B06E0B-B4F5-4398-927A-CE33C78D45F7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A34E8CAE-740B-4585-9604-F04A785877DA} = {57EFF6E6-B4A4-4FBA-B686-DD2A364C4A89}
 		{065500E8-D9D6-41D4-A301-18B10E94D06F} = {3AB9468A-17C1-4FBC-A3F5-A62C3C6832D1}
+		{41B06E0B-B4F5-4398-927A-CE33C78D45F7} = {3AB9468A-17C1-4FBC-A3F5-A62C3C6832D1}
 	EndGlobalSection
 EndGlobal

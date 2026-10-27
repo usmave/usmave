@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-26",
+  "updatedAt": "2026-10-27",
   "notes": "Versionskatalog für NeuralSwap. NVIDIA-DLLs dürfen nicht weiterverbreitet werden, deshalb enthält dieses Manifest nur Metadaten. Trage unter 'sources' eigene vertrauenswürdige Download-URLs ein (inkl. sha256!) oder importiere die DLLs manuell in der App – z. B. aus einem Spiel, das die Version bereits mitbringt, oder von TechPowerUp/Nexus Mods.",
   "dlls": [
     {
@@ -8,7 +8,7 @@
       "version": "310.9.16.0",
       "sha256": null,
       "sources": [],
-      "notes": "DLSS 5 Neural Rendering – neuestes Modell (Okt. 2026, ausgeliefert mit NBA 2K27 und dem Metro-Redux-Next-Gen-Update). Preset B aktiviert das neue, deutlich schnellere Modell."
+      "notes": "DLSS 5 Neural Rendering – neuestes Modell (Okt. 2026, u. a. in NBA 2K27 und im Metro-Redux-Next-Gen-Update). Das NR-Modell/Preset wird im Overlay des Neural-Add-ons gewählt, nicht über die Upscaling-Presets."
     },
     {
       "fileName": "nvngx_dlss.dll",
@@ -33,24 +33,15 @@
     }
   ],
   "presets": {
-    "neuralRendering": {
-      "recommended": "B",
-      "description": "Preset A = altes Modell, Preset B = neues schnelles Neural-Rendering-Modell (bis ~40 % mehr FPS, minimal weichere Bildqualität)."
-    },
     "superResolution": {
-      "recommended": "K",
-      "description": "Preset K = neuestes Transformer-Preset für klassisches DLSS-Upscaling."
+      "recommended": "latest",
+      "description": "OptiScaler-Werte: K=11 (DLSS 4), L=12 und M=13 (DLSS 4.5), Latest=16777215. Presets A–F sind in aktuellen DLLs entfernt."
     }
   },
   "optiscalerRepo": "optiscaler/OptiScaler",
-  "neuralRendering": {
-    "feederRepo": "jlrouzies-fr/DLSS5-Feeder",
-    "lumeniteRepo": "umar-afzaal/LumeniteFX",
-    "lumeniteBranch": "mainline",
-    "shadersRepo": "crosire/reshade-shaders",
-    "shadersBranch": "slim",
-    "addonRepo": "RankFTW/rhi-repo",
-    "addonTagPrefixes": ["renodx-dlss5", "renodx-dlss"],
-    "reshadeHome": "https://reshade.me"
+  "dlss5oneclick": {
+    "repo": "faisalkindi/DLSS5oneclick",
+    "assetName": "dlss5oneclick.exe",
+    "pinnedTag": null
   }
 }

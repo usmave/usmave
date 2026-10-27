@@ -47,10 +47,10 @@ public sealed class OneClickService
         }
     }
 
-    public sealed record GameResult(Game Game, List<SwapResult> Swaps, PresetForcer.PresetResult? Preset);
+    public sealed record GameResult(Game Game, List<SwapResult> Swaps, PresetForcer.PresetResult? Preset, int CleanedFiles);
 
     /// <summary>Aktualisiert alle DLSS-DLLs eines Spiels auf die neueste Bibliotheksversion.</summary>
-    public GameResult UpdateGame(Game game, string? forcePreset = null, IProgress<string>? progress = null)
+    public GameResult UpdateGame(Game game, PresetChoice? forcePreset = null, IProgress<string>? progress = null)
     {
         var swaps = new List<SwapResult>();
 
@@ -84,23 +84,33 @@ public sealed class OneClickService
         PresetForcer.PresetResult? preset = null;
         if (forcePreset != null && game.Dlls.Count > 0)
         {
-            preset = PresetForcer.Force(game, forcePreset);
-            progress?.Report($"{game.Name}: {preset.Message}");
+            preset = PresetForcer.Apply(game, forcePreset.Value);
+            if (preset.Applied) progress?.Report($"{game.Name}: {preset.Message}");
         }
 
-        return new GameResult(game, swaps, preset);
+        // Wirkungslose dlsstweaks.ini früherer NeuralSwap-Versionen wegräumen.
+        var cleaned = LegacyCleanup.RemoveInertDlssTweaksIni(game);
+        if (cleaned > 0) progress?.Report($"{game.Name}: alte, wirkungslose dlsstweaks.ini entfernt.");
+
+        return new GameResult(game, swaps, preset, cleaned);
     }
 
     /// <summary>One-Click über alle Spiele.</summary>
-    public List<GameResult> UpdateAll(IEnumerable<Game> games, string? forcePreset = null, IProgress<string>? progress = null)
+    public List<GameResult> UpdateAll(IEnumerable<Game> games, PresetChoice? forcePreset = null, IProgress<string>? progress = null)
     {
         var results = new List<GameResult>();
         foreach (var game in games)
         {
             if (game.Dlls.Count == 0) continue;
-            if (game.LimitedModSupport)
-                progress?.Report($"{game.Name}: Xbox/Game-Pass-Titel – geschützte Dateien werden bei Bedarf entsperrt.");
             results.Add(UpdateGame(game, forcePreset, progress));
+        }
+
+        if (forcePreset != null)
+        {
+            var withoutLoader = results.Count(r => r.Preset is { Applied: false });
+            if (withoutLoader > 0)
+                progress?.Report($"Preset: {withoutLoader} Spiel(e) ohne OptiScaler – dort das Preset in der NVIDIA App setzen " +
+                                 "(Grafik → Programmeinstellungen → DLSS-Override → Modell-Presets).");
         }
         return results;
     }

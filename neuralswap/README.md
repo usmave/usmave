@@ -1,139 +1,109 @@
-# NeuralSwap – DLSS 5 Neural-Mods mit einem Klick
+# NeuralSwap – DLSS 5 mit einem Klick
 
-Windows-App (C#/.NET 8, WPF), die deine installierten Spiele findet und die
-DLSS-DLLs mit einem Klick auf die neueste Version bringt – inklusive
-DLSS 5 Neural Rendering (`nvngx_dlssnr.dll`), Preset-Erzwingung und
-OptiScaler-Installation für Spiele ohne native DLSS-Unterstützung.
+Windows-App (C#/.NET 8, WPF), die deine installierten Spiele findet, ihre
+DLSS-DLLs mit einem Klick auf den neuesten Stand bringt und DLSS 5 Neural
+Rendering (fotorealistische Gesichter und Beleuchtung) installiert.
 
-## Features
+## Funktionen
 
 - **Spiele-Scan**: Steam (alle Bibliotheken, auch auf anderen Laufwerken),
-  Epic Games, GOG, Xbox/Game Pass (`XboxGames` auf allen Laufwerken),
-  typische Spielordner wie `E:\Games`, `E:\Spiele` oder `D:\Epic Games` auf
-  allen festen Laufwerken sowie manuell hinzugefügte Ordner.
-- **One-Click-Update**: Tauscht alle gefundenen NGX-DLLs
-  (`nvngx_dlss.dll`, `nvngx_dlssg.dll`, `nvngx_dlssd.dll`, `nvngx_dlssnr.dll`)
-  gegen die neueste Version aus der lokalen DLL-Bibliothek. Das Original wird
-  automatisch gesichert (`*.nsbak`) und ist jederzeit wiederherstellbar.
-- **Preset erzwingen**: Setzt das Render-Preset (z. B. **B** = neues
-  Neural-Rendering-Modell, **K** = neuestes Super-Resolution-Preset) über die
-  `OptiScaler.ini` bzw. `dlsstweaks.ini` des Spiels.
-- **OptiScaler-Installation**: Lädt das neueste
-  [OptiScaler](https://github.com/optiscaler/OptiScaler)-Release von GitHub
-  und installiert es in den Spielordner – für Spiele ohne natives DLSS.
-- **Stärke &amp; Schärfe**: Pro Spiel lässt sich die erzwungene Render-Stärke
-  (DLAA, Qualität 1,5×, Ausgewogen 1,7×, Performance 2,0×,
-  Ultra Performance 3,0×) und die Nachschärfung (0–100 %) setzen – über die
-  `OptiScaler.ini` (Sektionen `QualityOverrides`/`Sharpness`) bzw. die
-  `dlsstweaks.ini` (`DLSSQualityLevels`/`ForceDLAA`).
-- **Versions-Manifest**: `manifest/dll-manifest.json` beschreibt die aktuell
-  neuesten DLL-Versionen. Die App kann es auch von einer URL laden
-  (Einstellung `manifestUrl`), sodass neue DLSS-Versionen ohne App-Update
-  erkannt werden.
+  Epic Games, GOG, Xbox/Game Pass (`XboxGames` auf allen Laufwerken), typische
+  Spielordner wie `E:\Games` oder `E:\Spiele` sowie manuell hinzugefügte
+  Ordner. Erkannt wird auch die eigentliche Spiel-EXE – bei Unreal-Spielen die
+  Shipping-EXE unter `Binaries\Win64` bzw. `Binaries\WinGDK`.
+- **One-Click-DLL-Update**: tauscht `nvngx_dlss.dll`, `nvngx_dlssg.dll`,
+  `nvngx_dlssd.dll` und `nvngx_dlssnr.dll` gegen die neueste Version der
+  Bibliothek – mit Backup (`*.nsbak`), nie als Downgrade.
+- **DLL-Ernte**: Bringt ein Spiel per offiziellem Update eine neuere DLL mit
+  (z. B. Metro Redux seit dem Next-Gen-Update mit 310.9.16.0), übernimmt der
+  Scan sie automatisch in die Bibliothek.
+- **Neural Rendering** (Gesichter & Beleuchtung): installieren/aktualisieren,
+  Diagnose, „Klappt nicht? Nächstes Setup“, Entfernen – siehe unten.
+- **Upscaling-Preset & Stärke/Schärfe**: über die `OptiScaler.ini` des
+  Spiels (siehe unten).
+- **OptiScaler** für Spiele ohne DLSS: installieren und rückstandslos entfernen.
+
+## Neural Rendering
+
+Die Installation übernimmt **[DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick)**
+(MIT) über seine Kommandozeile. Es wählt für jedes Spiel selbst das passende
+Setup – auf Grundlage zahlreicher Community-Rückmeldungen:
+
+- Spiele mit eigenem DLSS (DX11/DX12): ReShade (Add-on-Version) + Krishs
+  `renodx-dlss5`-Add-on + `nvngx_dlssnr.dll`,
+- Vulkan-Spiele mit DLSS (z. B. Indiana Jones): OptiScaler-NR-Fork – ReShade
+  erreicht Vulkan nicht über eine DLL neben der EXE,
+- Spiele ohne DLSS: der DLSS5-Feeder mit LumeniteFX,
+- Sonderfälle wie RE-Engine-Spiele (REFramework) oder spielspezifische Setups.
+
+NeuralSwap lädt DLSS5oneclick von GitHub (SHA-256 gegen den von GitHub
+veröffentlichten Digest geprüft), zeigt seinen Fortschritt im Protokoll und
+merkt sich, ob ReShade vorher schon im Spiel war – **„Entfernen“ nimmt ein
+vorhandenes ReShade nie mit**.
+
+Im Spiel: DLSS bzw. DLAA aktivieren, **Pos1** öffnet ReShade → Reiter
+**Add-ons** → **DLSS 5 Neural Rendering** → aktivieren; **F6** schaltet es
+ein und aus. Bei OptiScaler-Setups öffnet **Einfg** das Menü.
+
+**EnableHooks**: Meldet das Add-on im Spiel „NR braucht die
+Streamline-Einstellung … Setze EnableHooks=1“, setzt der Knopf
+„🔧 EnableHooks…“ genau diesen Wert in `ReShade.ini` (mit Sicherung). Ohne
+diese Meldung bitte nicht setzen: Fehlt der Schlüssel, schaltet das Add-on die
+Streamline-Hooks bei Bedarf selbst ein, und ein erzwungenes `1` kann manche
+Spiele beim Start abstürzen lassen.
+
+Wichtig: Das neuronale Modell läuft offiziell nur auf **RTX 50**. Nur für
+Singleplayer-Spiele verwenden (Anti-Cheat).
+
+## Upscaling-Preset, Stärke und Schärfe
+
+Diese Einstellungen schreibt NeuralSwap in die `OptiScaler.ini` – mit den
+Werten, die OptiScaler laut Quelltext erwartet (`RenderPresetForAll` als Zahl:
+K = 11, L = 12, M = 13, „Latest“ = 16777215). Die Presets A–F sind in
+aktuellen DLSS-DLLs entfernt. **Ohne OptiScaler im Spiel wird nichts
+geschrieben**; dann ist der Weg die NVIDIA App (Grafik → Programmeinstellungen
+→ DLSS-Override). Das Neural-Rendering-Modell wählt man dagegen im Overlay des
+Add-ons, nicht über diese Presets.
+
+Frühere Versionen haben in Spielen ohne Loader wirkungslose `dlsstweaks.ini`
+angelegt; der One-Click räumt sie wieder weg.
 
 ## Woher kommen die DLLs?
 
-NVIDIAs DLSS-DLLs dürfen nicht weiterverbreitet werden. Deshalb liefert die
-App keine DLLs mit und das Standard-Manifest enthält keine Download-URLs.
-Zwei Wege, die Bibliothek zu füllen:
+NVIDIAs DLLs werden nicht mitgeliefert. Die Bibliothek füllt sich über die
+DLL-Ernte aus deinen Spielen, über manuellen Import („DLL-Bibliothek…“) oder
+über eigene Quellen mit SHA-256 im Manifest (`manifest/dll-manifest.json`).
 
-1. **Automatische Ernte aus deinen Spielen** (empfohlen): Beim Scan prüft
-   die App alle gefundenen DLLs – bringt ein Spiel per offiziellem Update
-   eine neuere Version mit (z. B. Metro 2033/Last Light Redux seit dem
-   Next-Gen-Update vom 22.10.2026 mit DLSS 5 NR), wandert sie automatisch
-   in die Bibliothek und ist per One-Click in allen Spielen nutzbar.
-2. **Manuell importieren** („DLL-Bibliothek… → DLL importieren"): die
-   `nvngx_dlssnr.dll` aus einem beliebigen Ordner oder von einer
-   vertrauenswürdigen Quelle (TechPowerUp, Nexus Mods).
-3. **Eigene Quellen ins Manifest eintragen** (`sources` + `sha256`): dann
-   lädt die App die DLL selbst herunter und verifiziert den Hash.
+## Tests
+
+- `neuralswap/tests/NeuralSwap.Core.Tests` – Unit-Tests mit realistischen
+  Ordnerstrukturen (Unreal auf Steam und Game Pass, SteamLibrary in
+  `E:\Games`, NVIDIA-Versionsangaben mit Kommas), selbst erzeugten PE-Dateien
+  und einem simulierten GitHub.
+- `neuralswap/tests/NeuralSwap.Integration` – läuft in GitHub Actions auf
+  Windows gegen die **echten** Downloads: DLSS5oneclick installiert, prüft und
+  entfernt in einem Testspiel, OptiScaler wird aus dem echten Release
+  installiert; danach muss jeder Spielordner Byte für Byte im
+  Ursprungszustand sein. Was nur im laufenden Spiel prüfbar ist (Bild, FPS),
+  kann dieser Test nicht abdecken.
 
 ## Bauen
 
 ```bash
-# Tests (laufen auch unter Linux)
 dotnet test neuralswap/tests/NeuralSwap.Core.Tests
-
-# Windows-App (unter Windows)
 dotnet publish neuralswap/src/NeuralSwap.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
-Oder einfach den GitHub-Actions-Workflow **NeuralSwap Build** laufen lassen –
-er hängt die fertige `NeuralSwap.exe` als Artefakt `NeuralSwap-win-x64` an.
+Die App fordert Administratorrechte an, weil Spiele meist unter
+`C:\Program Files` liegen.
 
-Die App fordert Administratorrechte an, weil Spiele unter
-`C:\Program Files` liegen und die DLLs dort sonst nicht getauscht werden
-können.
+## Danke
 
-## Die Mod-Methoden im Überblick
-
-| Methode | Wofür | In der App |
-|---|---|---|
-| **DLL-Swap** | Spiele mit nativem DLSS: neue `nvngx_*.dll` einsetzen | „Dieses Spiel aktualisieren" / One-Click |
-| **Preset-Override** | Neues Neural-Modell aktivieren (Preset B bzw. K) | „Preset erzwingen" (OptiScaler-/DLSSTweaks-Ini) |
-| **OptiScaler-Injektion** | Spiele ohne DLSS, FSR/XeSS→DLSS-Bridge, Basis der AMD-Mods | „OptiScaler installieren" |
-| **Stärke/Schärfe** | Interne Auflösung und Nachschärfung erzwingen | „Bild-Einstellungen anwenden" |
-| **Neural Rendering (Gesichter & Beleuchtung)** | Fotorealistische Gesichter/Licht per DLSS-5-NR-Modell | „Neural Rendering installieren" |
-| ReShade/RenoDX-Farbkombos | HDR/Farb-Mods zusätzlich | nicht automatisiert (pro Spiel zu verschieden) |
-
-### Neural Rendering (fotorealistische Gesichter & Beleuchtung)
-
-Die App installiert die Community-Pipeline nach dem Muster der etablierten
-Installer, automatisch in der passenden Variante:
-
-- **Pfad A** (Spiel hat natives DLSS): ReShade-Addon `renodx-dlss5.addon64`
-  + `nvngx_dlssnr.dll`; Konfiguration in `ReShade.ini`
-  (`[RenoDX.DLSS5]` mit `NRHookPoint`, `NRPasses`, `NRDetailStability`).
-- **Pfad B** (kein natives DLSS): `dlss5-feed.addon64` + `DLSS5_Feed.fx`
-  + LumeniteFX als Motion-Vector-Provider + Shader-Header;
-  `ReShade.ini` bekommt `DLSS5_MV_PROVIDER=3`, die Modell-Auflösung steht
-  in `dlss5-feed.cfg` (`work_resolution`).
-
-Die Modell-Auflösung (100/75/50 %) ist in der App wählbar – 75 % ist der
-übliche Kompromiss für RTX 20/30. **ReShade mit Add-on-Unterstützung** muss
-einmalig über den offiziellen Installer (reshade.me) ins Spiel; die App
-erkennt das und weist darauf hin. Deinstallation über denselben Knopf.
-
-**Ehrliche Warnung:** Diese Pipeline ist experimentell und stammt aus der
-Community, nicht von NVIDIA. Die Quell-Repos stehen im Manifest
-(`neuralRendering`) und lassen sich austauschen; die `nvngx_dlssnr.dll`
-(RTX 50: Original, RTX 20–40: ShortFuse-Build) besorgst du selbst. Auf
-schwächeren Karten kostet der Neural-Pass massiv Leistung, und die Optik
-(z. B. veränderte Gesichter) gefällt nicht jedem – Backup/Rollback ist
-eingebaut.
-
-**Aktivierung im Spiel:** Nach dem DLL-Swap einfach im Grafikmenü des Spiels
-DLSS auswählen – die neue DLL lädt automatisch. Bei OptiScaler öffnet die
-**Einfg-Taste** im Spiel ein Overlay-Menü, in dem sich Upscaler, Stärke,
-Schärfe und Frame Generation live umstellen lassen; die App setzt dieselben
-Werte vorab in der `OptiScaler.ini`.
-
-## Wichtige Hinweise
-
-- **Multiplayer/Anti-Cheat**: DLL-Tausch und erst recht OptiScaler-Injektion
-  nur in Singleplayer-Spielen verwenden. In Online-Titeln mit Anti-Cheat
-  drohen Sperren.
-- **Xbox/Game Pass**: Spiele unter `C:\XboxGames` sind per ACL geschützt.
-  Die App entsperrt die betroffenen Dateien bei Bedarf automatisch per
-  Besitzübernahme (takeown/icacls, dank Adminrechten). Das funktioniert bei
-  vielen, aber nicht bei allen Titeln – und Updates über die Xbox App
-  stellen die Originaldateien wieder her, danach einfach erneut den
-  One-Click ausführen.
-- **Rückgängig machen**: „Originale wiederherstellen" stellt die gesicherte
-  DLL wieder her. Auch ein Spiel-Dateicheck (Steam: „Spieldateien
-  überprüfen") ersetzt getauschte DLLs durch die Originale.
-- **Preset-Hinweis**: Die Preset-Erzwingung greift über OptiScaler bzw.
-  DLSSTweaks. Ist keines von beiden im Spiel vorhanden, legt die App eine
-  vorbereitete `dlsstweaks.ini` an und weist darauf hin, dass zusätzlich der
-  DLSSTweaks-Loader nötig ist – alternativ das Preset in der NVIDIA App
-  (Treiber-Override) setzen.
-
-## Aufbau
-
-```
-neuralswap/
-├── manifest/dll-manifest.json      # Versionskatalog (aktualisierbar)
-├── src/NeuralSwap.Core/            # Scan, Swap, Bibliothek, Presets, OptiScaler
-├── src/NeuralSwap.App/             # WPF-Oberfläche (deutsch)
-└── tests/NeuralSwap.Core.Tests/    # xunit-Tests (24 Tests)
-```
+NeuralSwap automatisiert die Arbeit anderer:
+[DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick) (faisalkindi),
+[ReShade](https://reshade.me) (crosire),
+[DLSS5-Feeder](https://github.com/jlrouzies-fr/DLSS5-Feeder) (jlrouzies-fr),
+[LumeniteFX](https://github.com/umar-afzaal/LumeniteFX) (Afzaal),
+[RenoDX](https://github.com/clshortfuse/renodx) und das renodx-dlss5-Add-on (Krish),
+[OptiScaler](https://github.com/optiscaler/OptiScaler) und
+[rhi-repo](https://github.com/RankFTW/rhi-repo) (RankFTW).

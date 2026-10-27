@@ -53,34 +53,98 @@ public class PresetForcerTests : IDisposable
         return game;
     }
 
-    [Fact]
-    public void UsesOptiScalerIniWhenPresent()
+    [Theory]
+    [InlineData(PresetChoice.K, "11")]
+    [InlineData(PresetChoice.L, "12")]
+    [InlineData(PresetChoice.M, "13")]
+    [InlineData(PresetChoice.Latest, "16777215")]
+    public void WritesOptiScalerIntegerValues(PresetChoice choice, string expected)
     {
-        File.WriteAllLines(Path.Combine(_root, "OptiScaler.ini"), new[] { "[Dlss]", "RenderPresetOverride=false" });
+        // OptiScaler liest RenderPresetForAll per readInt (Config.cpp) – Buchstaben würden ignoriert.
+        File.WriteAllLines(Path.Combine(_root, "OptiScaler.ini"), new[] { "[DLSS]", "RenderPresetOverride=false" });
 
-        var result = PresetForcer.Force(MakeGame(), "b");
+        var result = PresetForcer.Apply(MakeGame(), choice);
 
-        Assert.True(result.Success, result.Message);
+        Assert.True(result.Applied, result.Message);
         var ini = IniFile.Load(result.ConfigFile!);
-        Assert.Equal("true", ini.Get("Dlss", "RenderPresetOverride"));
-        Assert.Equal("B", ini.Get("Dlss", "RenderPresetForAll"));
+        Assert.Equal("true", ini.Get("DLSS", "RenderPresetOverride"));
+        Assert.Equal(expected, ini.Get("DLSS", "RenderPresetForAll"));
     }
 
     [Fact]
-    public void CreatesDlssTweaksIniAsFallback()
+    public void GameDefaultTurnsOverrideOff()
     {
-        var result = PresetForcer.Force(MakeGame(), "B");
+        File.WriteAllLines(Path.Combine(_root, "OptiScaler.ini"),
+            new[] { "[DLSS]", "RenderPresetOverride=true", "RenderPresetForAll=11" });
 
-        Assert.True(result.Success, result.Message);
-        Assert.EndsWith("dlsstweaks.ini", result.ConfigFile);
-        Assert.Equal("B", IniFile.Load(result.ConfigFile!).Get("DLSSPresets", "Global"));
-        Assert.Contains("DLSSTweaks", result.Message); // Hinweis auf fehlenden Loader
+        var result = PresetForcer.Apply(MakeGame(), PresetChoice.GameDefault);
+
+        Assert.True(result.Applied, result.Message);
+        Assert.Equal("false", IniFile.Load(result.ConfigFile!).Get("DLSS", "RenderPresetOverride"));
     }
 
     [Fact]
-    public void RejectsUnknownPreset()
+    public void WithoutOptiScalerNothingIsWritten()
     {
-        Assert.False(PresetForcer.Force(MakeGame(), "Z").Success);
+        var result = PresetForcer.Apply(MakeGame(), PresetChoice.M);
+
+        Assert.False(result.Applied);
+        Assert.Contains("NVIDIA App", result.Message);
+        Assert.False(File.Exists(Path.Combine(_root, "dlsstweaks.ini")));
+        Assert.False(File.Exists(Path.Combine(_root, "OptiScaler.ini")));
+    }
+}
+
+public class LegacyCleanupTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "nstest_" + Guid.NewGuid().ToString("N"));
+
+    public LegacyCleanupTests() => Directory.CreateDirectory(_root);
+    public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
+
+    private Game MakeGame() => new() { Name = "Test", InstallDir = _root, Platform = GamePlatform.Manual };
+
+    [Fact]
+    public void RemovesFileWrittenByOldPresetForcer()
+    {
+        // Genau das, was Version 1 für jedes Spiel angelegt hat.
+        File.WriteAllLines(Path.Combine(_root, "dlsstweaks.ini"), new[] { "[DLSSPresets]", "Global=B" });
+
+        Assert.Equal(1, LegacyCleanup.RemoveInertDlssTweaksIni(MakeGame()));
+        Assert.False(File.Exists(Path.Combine(_root, "dlsstweaks.ini")));
+    }
+
+    [Fact]
+    public void RemovesFileWrittenByOldQualityTweaker()
+    {
+        File.WriteAllLines(Path.Combine(_root, "dlsstweaks.ini"), new[]
+        {
+            "[DLSSPresets]", "Global=B", "", "[DLSS]", "ForceDLAA=false",
+            "", "[DLSSQualityLevels]", "Enable=true", "Quality=0.666667", "Performance=0.666667",
+        });
+
+        Assert.Equal(1, LegacyCleanup.RemoveInertDlssTweaksIni(MakeGame()));
+    }
+
+    [Fact]
+    public void KeepsRealDlssTweaksIni()
+    {
+        File.WriteAllLines(Path.Combine(_root, "dlsstweaks.ini"), new[]
+        {
+            "; DLSSTweaks by emoose", "[DLSS]", "ForceDLAA = false", "OverrideAutoExposure = 0",
+        });
+
+        Assert.Equal(0, LegacyCleanup.RemoveInertDlssTweaksIni(MakeGame()));
+        Assert.True(File.Exists(Path.Combine(_root, "dlsstweaks.ini")));
+    }
+
+    [Fact]
+    public void KeepsFileWhenDlssTweaksLoaderIsPresent()
+    {
+        File.WriteAllLines(Path.Combine(_root, "dlsstweaks.ini"), new[] { "[DLSSPresets]", "Global=K" });
+        File.WriteAllBytes(Path.Combine(_root, "nvngx.dll"), new byte[] { 1 });
+
+        Assert.Equal(0, LegacyCleanup.RemoveInertDlssTweaksIni(MakeGame()));
     }
 }
 
@@ -127,26 +191,13 @@ public class QualityTweakerTests : IDisposable
     }
 
     [Fact]
-    public void FallsBackToDlssTweaksWithFractions()
+    public void WithoutOptiScalerNothingIsWritten()
     {
         var result = QualityTweaker.Apply(MakeGame(), QualityMode.Quality);
 
-        Assert.True(result.Success, result.Message);
-        Assert.EndsWith("dlsstweaks.ini", result.ConfigFile);
-        var ini = IniFile.Load(result.ConfigFile!);
-        Assert.Equal("true", ini.Get("DLSSQualityLevels", "Enable"));
-        Assert.Equal("0.666667", ini.Get("DLSSQualityLevels", "Performance"));
-    }
-
-    [Fact]
-    public void DlaaUsesForceDlaaInDlssTweaks()
-    {
-        var result = QualityTweaker.Apply(MakeGame(), QualityMode.Dlaa);
-
-        Assert.True(result.Success, result.Message);
-        var ini = IniFile.Load(result.ConfigFile!);
-        Assert.Equal("true", ini.Get("DLSS", "ForceDLAA"));
-        Assert.Equal("false", ini.Get("DLSSQualityLevels", "Enable"));
+        Assert.False(result.Success);
+        Assert.Contains("NVIDIA App", result.Message);
+        Assert.False(File.Exists(Path.Combine(_root, "dlsstweaks.ini")));
     }
 
     [Fact]
@@ -169,7 +220,8 @@ public class VersionManifestTests
         var nr = manifest.Latest(DlssDllKind.NeuralRendering);
         Assert.NotNull(nr);
         Assert.Equal("310.9.16.0", nr!.Version);
-        Assert.Equal("B", manifest.Presets["neuralRendering"].Recommended);
+        Assert.Equal("latest", manifest.Presets["superResolution"].Recommended);
+        Assert.Equal("faisalkindi/DLSS5oneclick", manifest.Dlss5OneClick.Repo);
     }
 
     [Fact]
