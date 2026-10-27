@@ -4,6 +4,7 @@
 // und dass nach dem Entfernen jeder Spielordner wieder exakt im Ursprungszustand ist.
 
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using NeuralSwap.Core.Install;
@@ -136,7 +137,7 @@ try
         var zipPath = Path.Combine(work, "model", asset.Name);
         await new GitHubReleases(http).DownloadAsync(asset.Url, zipPath, asset.Digest);
         var extracted = Path.Combine(work, "model", "nvngx_dlssnr.dll");
-        using (var zip = System.IO.Compression.ZipFile.OpenRead(zipPath))
+        using (var zip = ZipFile.OpenRead(zipPath))
             zip.Entries.First(e => e.Name.Equals("nvngx_dlssnr.dll", StringComparison.OrdinalIgnoreCase))
                 .ExtractToFile(extracted, overwrite: true);
         var library = new NeuralSwap.Core.Library.DllLibrary(Path.Combine(work, "library"));
