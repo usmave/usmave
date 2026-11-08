@@ -55,6 +55,20 @@ Spiele beim Start abstürzen lassen.
 Wichtig: Das neuronale Modell läuft offiziell nur auf **RTX 50**. Nur für
 Singleplayer-Spiele verwenden (Anti-Cheat).
 
+## Schutz für Online-Spiele und Game-Pass-Kopien
+
+- **Anti-Cheat**: Spiele mit Easy Anti-Cheat, BattlEye, EA Javelin, GameGuard,
+  Anti-Cheat Expert oder Ricochet (Call of Duty) lässt der One-Click aus und
+  nimmt dort frühere Änderungen von NeuralSwap zurück. Neural Rendering und
+  OptiScaler werden in solchen Spielen nicht installiert. Ein einzelnes Spiel
+  lässt sich nur nach ausdrücklicher Bestätigung auf eigenes Risiko ändern.
+- **Geschützte Game-Pass-Kopien**: Ist die Spiel-EXE einer Game-Pass-/Store-
+  Installation gesperrt, lädt das Spiel keine Mods, die daneben liegen.
+  NeuralSwap zeigt das an und installiert dort weder Neural Rendering noch
+  OptiScaler. Die Steam-, Epic- oder GOG-Version desselben Spiels geht.
+- Alle Meldungen von DLSS5oneclick erscheinen im Protokoll auf Deutsch
+  (unbekannte Fehler mit dem Originaltext).
+
 ## Upscaling-Preset, Stärke und Schärfe
 
 Diese Einstellungen schreibt NeuralSwap in die `OptiScaler.ini` – mit den

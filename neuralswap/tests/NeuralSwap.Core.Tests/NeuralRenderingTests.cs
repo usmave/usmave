@@ -158,7 +158,7 @@ public class NeuralRenderingServiceTests : IDisposable
         var outcome = await Service().InstallAsync(MakeGame());
 
         Assert.False(outcome.Success);
-        Assert.Contains("error: dxgi.dll already exists", outcome.Message);
+        Assert.StartsWith("Nicht installiert – Fehler (Originalmeldung): dxgi.dll already exists", outcome.Message);
     }
 
     [Fact]
@@ -210,9 +210,10 @@ public class NeuralRenderingServiceTests : IDisposable
     [Fact]
     public void SummaryPrefersDoneOrErrorLine()
     {
-        const string output = "using C:\\Game.exe\n[1/2] ReShade\n      ok: done\n\nDone. In game: Home opens ReShade -> Add-ons tab";
-        Assert.StartsWith("Done. In game", NeuralRenderingService.Summary(output, "Done."));
-        Assert.Equal("Done. In game: Home opens ReShade -> Add-ons tab", NeuralRenderingService.Summary(output, "error:"));
+        const string done = "Done. In game: Home opens ReShade -> Add-ons tab -> DLSS 5 Neural Rendering -> enable. (Home tab saying no effect files is normal on games with their own DLSS.)";
+        var output = "using C:\\Game.exe\n[1/2] ReShade\n      ok: done\n\n" + done;
+        Assert.StartsWith("Fertig. Im Spiel DLSS bzw. DLAA einschalten", NeuralRenderingService.Summary(output, "Done."));
+        Assert.StartsWith("Fertig.", NeuralRenderingService.Summary(output, "error:")); // ohne Fehlerzeile: letzte Zeile
     }
 }
 

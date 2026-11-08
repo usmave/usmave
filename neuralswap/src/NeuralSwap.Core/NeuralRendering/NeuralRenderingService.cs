@@ -2,6 +2,7 @@ using System.Text.Json;
 using NeuralSwap.Core.Install;
 using NeuralSwap.Core.Models;
 using NeuralSwap.Core.Presets;
+using NeuralSwap.Core.Scanning;
 using NeuralSwap.Core.Swapping;
 
 namespace NeuralSwap.Core.NeuralRendering;
@@ -53,9 +54,24 @@ public sealed class NeuralRenderingService
 
     private static string Target(Game game) => game.MainExe ?? game.InstallDir;
 
+    /// <summary>Spiele, in die kein Neural Rendering gehört – mit deutscher Begründung.</summary>
+    private static NrOutcome? Refusal(Game game)
+    {
+        if (GameProtection.DetectAntiCheat(game) is { } antiCheat)
+            return new(false, $"Nicht installiert – Online-Spiel mit Anti-Cheat ({antiCheat}). Eingeschleuste Add-ons " +
+                              "werden erkannt: Kick oder Sperre drohen.");
+        if (GameProtection.IsLockedStoreCopy(game))
+            return new(false, "Nicht installiert – Windows schützt diese Game-Pass-/Store-Installation (die Spiel-EXE ist " +
+                              "gesperrt), deshalb lädt das Spiel keine Mods, die daneben liegen. Mit der Steam-, Epic- oder " +
+                              "GOG-Version desselben Spiels funktioniert es.");
+        return null;
+    }
+
     /// <summary>Installiert Neural Rendering bzw. bringt ein vorhandenes Setup auf den neuesten Stand.</summary>
     public async Task<NrOutcome> InstallAsync(Game game, IProgress<string>? progress = null, CancellationToken ct = default)
     {
+        if (Refusal(game) is { } refusal) return refusal;
+
         var before = GetStatus(game);
         if (before.OptiScalerPresent && new InstallTracker(game.ModDir, OptiScaler.OptiScalerInstaller.Kind, _stateRoot).IsInstalled)
             return new(false, "Hier ist OptiScaler über NeuralSwap installiert. Normales OptiScaler übernimmt die DLSS-Aufrufe " +
@@ -77,7 +93,7 @@ public sealed class NeuralRenderingService
             var after = GetStatus(game);
             return new(true, $"{Summary(result.Output, "Done.")} Status: {after.Describe()}");
         }
-        return new(false, "DLSS5oneclick meldet einen Fehler: " + Summary(result.Output, "error:"));
+        return new(false, "Nicht installiert – " + Summary(result.Output, "error:"));
     }
 
     /// <summary>Liest die Protokolle des Spiels und sagt, warum Neural Rendering läuft oder nicht.</summary>
@@ -91,11 +107,12 @@ public sealed class NeuralRenderingService
     /// <summary>Wechselt auf das nächste Setup der DLSS5oneclick-Liste („funktioniert nicht? nächstes probieren“).</summary>
     public async Task<NrOutcome> NextSetupAsync(Game game, IProgress<string>? progress = null, CancellationToken ct = default)
     {
+        if (Refusal(game) is { } refusal) return refusal;
         if (game.LimitedModSupport) FileUnlocker.TryUnlockForMods(game.ModDir);
         var result = await RunToolAsync(game, new[] { "--next-setup" }, progress, ct);
         return result.ExitCode == 0
             ? new(true, $"{Summary(result.Output, "Done.")} Status: {GetStatus(game).Describe()}")
-            : new(false, "Nächstes Setup nicht möglich: " + Summary(result.Output, "error:"));
+            : new(false, "Nächstes Setup nicht möglich – " + Summary(result.Output, "error:"));
     }
 
     /// <summary>
@@ -110,7 +127,7 @@ public sealed class NeuralRenderingService
 
         var result = await RunToolAsync(game, new[] { removeReShade ? "--remove-all" : "--remove" }, progress, ct);
         if (result.ExitCode != 0)
-            return new(false, "Entfernen fehlgeschlagen (läuft das Spiel noch?): " + Summary(result.Output, "error:"));
+            return new(false, "Entfernen fehlgeschlagen (läuft das Spiel noch?) – " + Summary(result.Output, "error:"));
 
         try { File.Delete(StatePath(game)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
 
@@ -166,7 +183,7 @@ public sealed class NeuralRenderingService
         var tool = await _tool.EnsureAsync(progress, ct);
         progress?.Report($"DLSS5oneclick {tool.Tag}: {string.Join(' ', flags.DefaultIfEmpty("Installieren/Aktualisieren"))} …");
         var result = await _tool.RunAsync(tool, Target(game), flags,
-            line => { if (Dlss5OneClick.CleanLine(line) is { } text) progress?.Report("  " + text); }, ct);
+            line => { if (Dlss5OneClick.CleanLine(line) is { } text) progress?.Report("  " + Dlss5OneClickText.ToGerman(text)); }, ct);
         if (result.TimedOut) progress?.Report("DLSS5oneclick hat das Zeitlimit überschritten und wurde beendet.");
         return result;
     }
@@ -179,8 +196,8 @@ public sealed class NeuralRenderingService
             .Where(l => l != null)
             .Select(l => l!)
             .ToList();
-        return lines.LastOrDefault(l => l.StartsWith(preferredPrefix, StringComparison.OrdinalIgnoreCase))
-               ?? lines.LastOrDefault()
-               ?? "(keine Ausgabe)";
+        var chosen = lines.LastOrDefault(l => l.StartsWith(preferredPrefix, StringComparison.OrdinalIgnoreCase))
+                     ?? lines.LastOrDefault();
+        return chosen == null ? "(keine Ausgabe)" : Dlss5OneClickText.ToGerman(chosen);
     }
 }

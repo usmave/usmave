@@ -158,7 +158,12 @@ public partial class MainWindow : Window
         GameWarning.Visibility = game.LimitedModSupport ? Visibility.Visible : Visibility.Collapsed;
 
         var status = NrStatus.Detect(game);
-        NrStatusText.Text = status.Describe();
+        var notes = new List<string> { status.Describe() };
+        if (GameProtection.DetectAntiCheat(game) is { } antiCheat)
+            notes.Add($"⚠ Online-Spiel mit Anti-Cheat ({antiCheat}) – One-Click lässt es aus, Mods nicht empfohlen");
+        if (GameProtection.IsLockedStoreCopy(game))
+            notes.Add("⚠ Von Windows geschützte Game-Pass-Kopie – Neural Rendering/OptiScaler hier nicht möglich");
+        NrStatusText.Text = string.Join(Environment.NewLine, notes);
         if (!_busy)
         {
             NeuralDiagnoseButton.IsEnabled = status.HasNeuralRendering;
@@ -251,9 +256,12 @@ public partial class MainWindow : Window
             var preset = PresetIfForced;
             var progress = LogProgress();
             var results = await Task.Run(() => _oneClick.UpdateAll(_games, preset, progress));
-            var swapped = results.SelectMany(r => r.Swaps).Count(s => s.Success && !s.Skipped);
-            var failed = results.SelectMany(r => r.Swaps).Count(s => !s.Success);
-            Log($"One-Click fertig: {swapped} DLL(s) aktualisiert, {failed} Fehler.");
+            var updated = results.Where(r => r.SkippedReason == null).SelectMany(r => r.Swaps).ToList();
+            var swapped = updated.Count(s => s.Success && !s.Skipped);
+            var failed = updated.Count(s => !s.Success);
+            var protectedGames = results.Count(r => r.SkippedReason != null);
+            Log($"One-Click fertig: {swapped} DLL(s) aktualisiert, {failed} Fehler" +
+                (protectedGames > 0 ? $", {protectedGames} Spiel(e) mit Anti-Cheat bewusst ausgelassen." : "."));
             RefreshGamesList();
         }
         catch (Exception ex) { Log("One-Click fehlgeschlagen: " + ex.Message); }
@@ -264,6 +272,10 @@ public partial class MainWindow : Window
     {
         var game = SelectedGame;
         if (_busy || game == null) return;
+        if (GameProtection.DetectAntiCheat(game) is { } antiCheat &&
+            !Ask($"„{game.Name}“ ist ein Online-Spiel mit Anti-Cheat ({antiCheat}). Geänderte DLLs können zu Kick oder " +
+                 "Sperre führen. Der One-Click lässt solche Spiele deshalb aus.\n\nTrotzdem auf eigenes Risiko aktualisieren?"))
+            return;
         SaveSettings();
         var preset = PresetIfForced;
         await RunForGameAsync(game, "Aktualisierung", async progress =>

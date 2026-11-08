@@ -54,7 +54,9 @@ public sealed class OneClickService
                              "die Scan-Ernte übernimmt sie, sobald ein Spiel sie mitbringt; sonst unter „DLL-Bibliothek…“ importieren.");
     }
 
-    public sealed record GameResult(Game Game, List<SwapResult> Swaps, PresetForcer.PresetResult? Preset, int CleanedFiles);
+    /// <param name="SkippedReason">Gesetzt, wenn das Spiel bewusst nicht verändert wurde (z. B. Anti-Cheat).</param>
+    public sealed record GameResult(Game Game, List<SwapResult> Swaps, PresetForcer.PresetResult? Preset, int CleanedFiles,
+        string? SkippedReason = null);
 
     /// <summary>Aktualisiert alle DLSS-DLLs eines Spiels auf die neueste Bibliotheksversion.</summary>
     public GameResult UpdateGame(Game game, PresetChoice? forcePreset = null, IProgress<string>? progress = null)
@@ -112,6 +114,24 @@ public sealed class OneClickService
         return new GameResult(game, swaps, preset, cleaned);
     }
 
+    /// <summary>Stellt in einem Anti-Cheat-Spiel die Original-DLLs wieder her, statt etwas zu tauschen.</summary>
+    public static GameResult LeaveAntiCheatGame(Game game, string antiCheat, IProgress<string>? progress = null)
+    {
+        var restored = new List<SwapResult>();
+        foreach (var dll in game.Dlls.Where(d => d.HasBackup))
+        {
+            var result = DllSwapper.Restore(dll, unlockOnAccessDenied: game.LimitedModSupport);
+            restored.Add(result);
+            progress?.Report($"{game.Name}: {result.Message}");
+        }
+        var cleaned = LegacyCleanup.RemoveInertDlssTweaksIni(game);
+
+        progress?.Report($"{game.Name}: übersprungen – Online-Spiel mit Anti-Cheat ({antiCheat}). Geänderte DLLs können " +
+                         "zu Kick oder Sperre führen" +
+                         (restored.Count > 0 ? "; frühere Änderungen von NeuralSwap wurden zurückgenommen." : "."));
+        return new GameResult(game, restored, null, cleaned, antiCheat);
+    }
+
     /// <summary>One-Click über alle Spiele.</summary>
     public List<GameResult> UpdateAll(IEnumerable<Game> games, PresetChoice? forcePreset = null, IProgress<string>? progress = null)
     {
@@ -119,6 +139,13 @@ public sealed class OneClickService
         foreach (var game in games)
         {
             if (game.Dlls.Count == 0) continue;
+
+            // Online-Spiele mit Anti-Cheat bleiben unangetastet; frühere Tausche werden zurückgenommen.
+            if (Scanning.GameProtection.DetectAntiCheat(game) is { } antiCheat)
+            {
+                results.Add(LeaveAntiCheatGame(game, antiCheat, progress));
+                continue;
+            }
             results.Add(UpdateGame(game, forcePreset, progress));
         }
 

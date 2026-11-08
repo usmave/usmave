@@ -66,6 +66,10 @@ public sealed class OptiScalerInstaller
         var tracker = TrackerFor(game);
         if (tracker.IsInstalled)
             return new(false, "OptiScaler ist bereits über NeuralSwap installiert.");
+        if (Scanning.GameProtection.DetectAntiCheat(game) is { } antiCheat)
+            return new(false, $"Nicht installiert – Online-Spiel mit Anti-Cheat ({antiCheat}): eingeschleuste DLLs führen zu Kick oder Sperre.");
+        if (Scanning.GameProtection.IsLockedStoreCopy(game))
+            return new(false, "Nicht installiert – Windows schützt diese Game-Pass-/Store-Installation; das Spiel lädt keine DLLs, die daneben liegen.");
         if (NrStatus.HasOptiScaler(modDir))
             return new(false, "OptiScaler ist in diesem Spiel bereits vorhanden.");
 
