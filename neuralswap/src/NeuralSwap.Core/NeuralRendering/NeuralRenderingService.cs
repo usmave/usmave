@@ -101,7 +101,7 @@ public sealed class NeuralRenderingService
     {
         var result = await RunToolAsync(game, new[] { "--diagnose" }, progress, ct);
         return new(result.ExitCode == 0,
-            result.ExitCode == 0 ? "Diagnose ohne Fehler – Details oben im Protokoll." : "Diagnose hat Probleme gefunden – siehe [FAIL]-Zeilen oben.");
+            result.ExitCode == 0 ? "Diagnose ohne Fehler – Details oben im Protokoll." : "Diagnose hat Probleme gefunden – siehe die [FEHLER]-Zeilen oben.");
     }
 
     /// <summary>Wechselt auf das nächste Setup der DLSS5oneclick-Liste („funktioniert nicht? nächstes probieren“).</summary>
@@ -181,12 +181,23 @@ public sealed class NeuralRenderingService
         IProgress<string>? progress, CancellationToken ct)
     {
         var tool = await _tool.EnsureAsync(progress, ct);
-        progress?.Report($"DLSS5oneclick {tool.Tag}: {string.Join(' ', flags.DefaultIfEmpty("Installieren/Aktualisieren"))} …");
+        progress?.Report($"DLSS5oneclick {tool.Tag}: {ActionLabel(flags)} …");
         var result = await _tool.RunAsync(tool, Target(game), flags,
             line => { if (Dlss5OneClick.CleanLine(line) is { } text) progress?.Report("  " + Dlss5OneClickText.ToGerman(text)); }, ct);
         if (result.TimedOut) progress?.Report("DLSS5oneclick hat das Zeitlimit überschritten und wurde beendet.");
         return result;
     }
+
+    public static string ActionLabel(IReadOnlyList<string> flags) => flags.FirstOrDefault() switch
+    {
+        null => "Installieren/Aktualisieren",
+        "--diagnose" => "Diagnose",
+        "--next-setup" => "Nächstes Setup",
+        "--remove" => "Entfernen (ReShade bleibt)",
+        "--remove-all" => "Entfernen (inklusive ReShade)",
+        "--check" => "Prüfen",
+        var other => other,
+    };
 
     /// <summary>Die aussagekräftigste Zeile der Ausgabe (z. B. „Done. In game: …“ oder „error: …“).</summary>
     public static string Summary(string output, string preferredPrefix)

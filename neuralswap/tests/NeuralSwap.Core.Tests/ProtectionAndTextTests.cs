@@ -124,6 +124,13 @@ public class Dlss5OneClickTextTests
         Assert.StartsWith(germanStart, Dlss5OneClickText.ToGerman(english));
     }
 
+    [Theory]
+    [InlineData(new string[0], "Installieren/Aktualisieren")]
+    [InlineData(new[] { "--diagnose" }, "Diagnose")]
+    [InlineData(new[] { "--remove-all" }, "Entfernen (inklusive ReShade)")]
+    public void ActionLabelsAreGerman(string[] flags, string expected) =>
+        Assert.Equal(expected, NeuralRenderingService.ActionLabel(flags));
+
     [Fact]
     public void LeavesUnknownTextReadable()
     {
